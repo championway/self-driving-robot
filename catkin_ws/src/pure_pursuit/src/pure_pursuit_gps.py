@@ -7,7 +7,7 @@ from gazebo_msgs.msg import ModelStates
 from gazebo_msgs.srv import GetModelState
 from nav_msgs.msg import Path
 from message_filters import ApproximateTimeSynchronizer, TimeSynchronizer, Subscriber
-from robotx_msgs.msg import ObstaclePoseList, WayPoint, WayPointList
+from robotx_msgs.msg import ObstaclePoseList, Waypoint, WaypointList
 import numpy as np
 import math
 import tf
@@ -35,7 +35,7 @@ class gazebo_pure_pursuit():
         self.waypoints = []
         #self.waypoints_latlon = rospy.get_param('~path')
         #self.waypoints = [(297866.7060146949, 2743015.9757434796),(297842.4781992137, 2743046.7985285847),(297820.873462504, 2743014.9847823563),(297847.32052896597, 2742990.6662742873),(297806.29471554933, 2742986.3919879636)]
-        way_point = rospy.wait_for_message('/waypoint_list', WayPointList)
+        way_point = rospy.wait_for_message('/waypoint_list', WaypointList)
         #self.waypoints = [(2743015.9757434796, -297866.7060146949),(2743046.7985285847, -297842.4781992137),(2743014.9847823563, -297820.873462504),(2742990.6662742873, -297847.32052896597),(2742986.3919879636, -297806.29471554933)]
         for i in way_point.list:
             self.waypoints.append((i.x,i.y))
