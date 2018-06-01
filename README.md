@@ -2,7 +2,7 @@
 
 |Branch | Developer |
 |-------|--------|
-|Master |NCTU ARG lab|
+|Master |NCTU ARG Lab|
 |devel-david|[David Chen](https://github.com/championway)|
 |devel-sean|[Sean Lu](https://github.com/seanNCTU)|
 
@@ -11,13 +11,18 @@
 - ROS kinetic (Ubuntu 16.04)
 - PCL (Point Cloud Library)
 
-# Sensor
+# Hardware
 
-## IMU
+## Sensor
+
+### IMU
 - Sparkfun 9Dof Razor IMU
 
-## GPS
+### GPS
 - G-STAR IV (BU-353S4) 
+
+### LIDAR
+- Velodyne VLP-16 
 
 # Installation
 
@@ -26,14 +31,23 @@
 ```
 $ sudo apt-get install ros-kinetic-gazebo-ros-*
 ```
-# Self Driving Robot
+
+# How to build
+
+```
+$ git clone https://github.com/championway/self-driving-robot
+$ cd self-driving-robot/catkin_ws
+$ source /opt/ros/kinetic/setup.bash
+$ catkin_make
+```
+Note:
+Do the following everytime as you open new terminals
 
 ```
 $ cd self-driving-robot/catkin_ws
 $ source environment.sh
 ```
-Note:
-Do it everytime as you open new terminals
+
 
 ## Kinematics
 
