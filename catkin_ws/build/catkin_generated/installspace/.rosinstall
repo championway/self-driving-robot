@@ -1,0 +1,2 @@
+- setup-file:
+    local-name: /home/david/self-driving-robot/catkin_ws/install/setup.sh

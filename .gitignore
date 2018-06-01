@@ -1,0 +1,8 @@
+*~
+*.bag
+*.pyc
+*.swp
+*.swo
+catkin_ws/src/build
+catkin_ws/src/devel
+catkin_ws/.catkin_workspace
