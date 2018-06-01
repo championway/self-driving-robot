@@ -1,17 +1,18 @@
 # Self Driving Robot - NCTU ARG
 
+|Branch | Developer |
+|-------|--------|
+|Master |NCTU ARG lab|
+|devel-david|David Chen(https://github.com/championway)|
+|devel-sean|[Sean Lu(https://github.com/seanNCTU)|
+
 ## Hardware
 
-|Branch | Status |
-|-------|--------|
-|IMU |[Sparkfun 9Dof Razor IMU|
-|GPS|[G-STAR IV (BU-353S4)|
-
 ### IMU
-
+Sparkfun 9Dof Razor IMU
 
 ### GPS
-
+G-STAR IV (BU-353S4) 
 
 ## Installation
 
