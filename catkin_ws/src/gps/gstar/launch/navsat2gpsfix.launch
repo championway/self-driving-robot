@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  
+  <!-- start basic args -->
+  <arg name="port" default="/dev/ttyUSB0"/>
+  <arg name="baud" default="4800" />
+
+  <!-- open gps driver -->
+  <node name="nmea_navsat_driver" pkg="nmea_navsat_driver" type="nmea_serial_driver" output="screen">
+    <param name="port" value="$(arg port)"/>
+    <param name="baud" value="$(arg baud)"/>
+  </node>
+  <!-- End -->
+
+  <!-- navsat to gpsfix -->
+  <!--include file="$(find gps_common)/launch/fix_translator.launch"></include-->
+  <!-- End -->
+
+</launch>

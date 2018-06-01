@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  
+  <!-- start basic args -->
+  <arg name="port" default="/dev/ttyUSB0"/>
+  <arg name="baud" default="4800" />
+
+  <!-- navsat to gpsfix -->
+  <include file="$(find gstar)/launch/navsat2gpsfix.launch">
+    <arg name="port" value="$(arg port)"/>
+    <arg name="baud" value="$(arg baud)"/>
+  </include>
+  <!-- End -->
+
+  <!-- open odometry -->
+  <node name="utm_odometry_node" pkg="gps_common" type="utm_odometry_node" output="screen"></node>
+  <!-- End -->
+
+</launch>
