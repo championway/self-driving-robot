@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+	<param name="use_gui" value="False"/>
+   	<param name="robot_description" command="$(find xacro)/xacro.py $(find bot)/urdf/bot.xacro veh:=david"/>
+
+   	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find pure_pursuit)/config/rviz/pure_pursuit.rviz" />
+   	<node name="pub_rviz" pkg="pure_pursuit" type="pub_rviz_gps.py" output="screen" clear_params="true" required="true">
+   		<rosparam command="load" file="$(find pure_pursuit)/config/path/path.yaml"/>
+   	</node>
+   	<node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+   	<node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+</launch>
