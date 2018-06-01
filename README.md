@@ -3,8 +3,8 @@
 |Branch | Developer |
 |-------|--------|
 |Master |NCTU ARG lab|
-|devel-david|David Chen(https://github.com/championway)|
-|devel-sean|[Sean Lu(https://github.com/seanNCTU)|
+|devel-david|David Chen https://github.com/championway|
+|devel-sean|Sean Lu https://github.com/seanNCTU|
 
 ## Hardware
 
