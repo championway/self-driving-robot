@@ -10,9 +10,9 @@ echo "Activating ROS with shell: $SHELL"
 source /opt/ros/kinetic/setup.$shell
 export GAZEBO_MODEL_PATH
 export HOSTNAME=$HOSTNAME
-export ROS_HOSTNAME=$HOSTNAME.local
-echo "Set ROS_HOSTNAME to: $ROS_HOSTNAME"
-echo "Set GAZEBO_MODEL_PATH to: $GAZEBO_MODEL_PATH"
+#export ROS_HOSTNAME=$HOSTNAME.local
+#echo "Set ROS_HOSTNAME to: $ROS_HOSTNAME"
+#echo "Set GAZEBO_MODEL_PATH to: $GAZEBO_MODEL_PATH"
 if [ 2015 -ge $(date +%Y) ];
 then
     >&2 echo "Error! Time travel detected. System time is: $(date)"
