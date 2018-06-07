@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <nav_msgs/Odometry.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_types.h>
@@ -18,7 +19,7 @@ using namespace pcl;
 //define point cloud type
 typedef pcl::PointCloud<pcl::PointXYZ> PointCloudXYZ;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloudXYZRGB;
-typedef boost::shared_ptr <geometry_msgs::PoseStamped const> PoseStampedConstPtr;
+typedef boost::shared_ptr <nav_msgs::Odometry const> OdometryConstPtr;
 
 //declare point cloud
 PointCloudXYZ::Ptr input_XYZ (new PointCloudXYZ);
@@ -42,7 +43,7 @@ bool lock = false;
 
 void icp(void);
 
-void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const geometry_msgs::PoseStampedConstPtr& pose_msg)
+void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::OdometryConstPtr& odom_msg)
 {
   pcl::fromROSMsg (*pcl_msg, *input_XYZ);
   copyPointCloud(*input_XYZ, *scene);
@@ -114,10 +115,10 @@ int main (int argc, char** argv)
 
   // Create a ROS subscriber for the input point cloud
   message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
-  message_filters::Subscriber<geometry_msgs::PoseStamped> pose_sub(nh, "/robot_pose", 1);
-  typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, geometry_msgs::PoseStamped> MySyncPolicy;
+  message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh, "/odom", 1);
+  typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
   // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
-  Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), pcl_sub, pose_sub);
+  Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), pcl_sub, odom_sub);
   sync.registerCallback(boost::bind(&callback, _1, _2));
 
   //ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, cloud_cb);
