@@ -35,8 +35,9 @@ $ sudo apt-get install ros-kinetic-gazebo-ros-*
 # How to build
 
 ```
+$ cd
 $ git clone https://github.com/championway/self-driving-robot
-$ cd self-driving-robot/catkin_ws
+$ cd ~/self-driving-robot/catkin_ws
 $ source /opt/ros/kinetic/setup.bash
 $ catkin_make --pkg robotx_msgs
 $ catkin_make
