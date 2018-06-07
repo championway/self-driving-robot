@@ -35,14 +35,22 @@ PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 ros::Publisher pub_result;
 
 bool first = true;
+bool lock = false;
 
 //declare function
 //void callback(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
+
+void icp(void);
 
 void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const geometry_msgs::PoseStampedConstPtr& pose_msg)
 {
   pcl::fromROSMsg (*pcl_msg, *input_XYZ);
   copyPointCloud(*input_XYZ, *scene);
+  for (size_t i = 0; i < scene->points.size(); i++){
+    scene->points[i].r = 255;
+    scene->points[i].g = 0;
+    scene->points[i].b = 0; 
+  }
   
   if(first)
   {
@@ -52,6 +60,15 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const geometry_ms
     first = false;
   }
 
+  if(!lock)
+  {
+    lock = true;
+    icp();
+  }
+}
+
+void icp()
+{
   //define ICP
   pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree1 (new pcl::search::KdTree<pcl::PointXYZRGB>);
@@ -86,6 +103,7 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const geometry_ms
   Eigen::Matrix4f trans = icp.getFinalTransformation();
   *map += *scene;
   pub_result.publish(*map);
+  lock = false;
 }
 
 int main (int argc, char** argv)
