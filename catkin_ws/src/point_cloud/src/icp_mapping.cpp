@@ -37,6 +37,8 @@ ros::Publisher pub_result;
 
 bool first = true;
 bool lock = false;
+Eigen::Quaterniond q;
+float position[3];
 
 //declare function
 //void callback(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
@@ -60,6 +62,16 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::O
     pcl::removeNaNFromPointCloud(*result, *result, a);*/
     first = false;
   }
+  q.x() = odom_msg->pose.pose.orientation.x;
+  q.y() = odom_msg->pose.pose.orientation.y;
+  q.z() = odom_msg->pose.pose.orientation.z;
+  q.w() = odom_msg->pose.pose.orientation.w;
+
+  position[0] = odom_msg->pose.pose.position.x;
+  position[1] = odom_msg->pose.pose.position.y;
+  position[2] = odom_msg->pose.pose.position.z;
+  //odom_msg.pose.pose.position
+  //odom_msg.pose.pose.orientation
 
   if(!lock)
   {
@@ -77,10 +89,17 @@ void icp()
 
   //ICP initial transform matrix
   Eigen::Matrix4f init_align;
-  init_align <<     0.707097,    -0.707121,  0.00031099,   -43.8569,
+  q.normalized();
+  Eigen::Matrix3d rot = q.toRotationMatrix();
+  init_align <<     rot(0,0), rot(0,1), rot(0,2), position[0],
+                    rot(1,0), rot(1,1), rot(1,2), position[1],
+                    rot(2,0), rot(2,1), rot(2,2), position[2],
+                           0,        0,        0,           1;
+
+  /*init_align <<     0.707097,    -0.707121,  0.00031099,   -43.8569,
                     0.707125,       0.7071, 0.000705772,    36.1607,
                 -0.000718911, -0.000279344,           1,  -0.990627,
-                           0,            0,           0,          1; 
+                           0,            0,           0,          1; */
 
   std::cout<< "Start ICP" << std::endl;
   // Remove NaN point
