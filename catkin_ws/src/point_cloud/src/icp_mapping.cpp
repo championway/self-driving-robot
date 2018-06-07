@@ -34,6 +34,8 @@ PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 //declare ROS publisher
 ros::Publisher pub_result;
 
+bool first = true;
+
 //declare function
 //void callback(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
 
@@ -42,6 +44,14 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const geometry_ms
   pcl::fromROSMsg (*pcl_msg, *input_XYZ);
   copyPointCloud(*input_XYZ, *scene);
   
+  if(first)
+  {
+    copyPointCloud (*scene, *map);
+    /*std::vector<int> a;
+    pcl::removeNaNFromPointCloud(*result, *result, a);*/
+    first = false;
+  }
+
   //define ICP
   pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree1 (new pcl::search::KdTree<pcl::PointXYZRGB>);
