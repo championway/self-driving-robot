@@ -28,6 +28,7 @@
 #include <message_filters/time_synchronizer.h>
 #include <Eigen/Dense>
 #include <pcl/features/normal_3d.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 using namespace Eigen;
 using namespace message_filters;
 //define point cloud type
@@ -39,6 +40,7 @@ PointCloudXYZ::Ptr cloud_inXYZ (new PointCloudXYZ);
 PointCloudXYZRGB::Ptr cloud_in (new PointCloudXYZRGB); 
 PointCloudXYZRGB::Ptr cloud_filtered (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr plane_filtered (new PointCloudXYZRGB);
+PointCloudXYZRGB::Ptr cloud_h (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_f (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_plane (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr hold_plane (new PointCloudXYZRGB);
@@ -52,6 +54,9 @@ ros::Publisher pub_obstacle;
 tf::TransformListener* lr;
 //declare global variable
 bool lock = false;
+float thres_z = 1;
+
+
 //declare function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
 void cluster_pointcloud(void); //point cloud clustering
@@ -106,18 +111,40 @@ void cluster_pointcloud()
   vg.setLeafSize (0.02f, 0.02f, 0.02f); //unit:cetimeter
   vg.filter (*cloud_filtered);
   std::cout << "Filtering successfully" << std::endl;*/
+
+  //========== Outlier remove ==========
+  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> out_filter;
+  out_filter.setInputCloud (cloud_filtered);
+  out_filter.setMeanK (50);
+  out_filter.setStddevMulThresh (1.0);
+  out_filter.filter (*cloud_filtered);
+
+  //========== Remove Higer Place ==========
+  pcl::ExtractIndices<pcl::PointXYZRGB> extract_higher_place;
+  pcl::PointIndices::Ptr high_indices (new pcl::PointIndices);
+  for (int i = 0; i < cloud_filtered->points.size(); i++)
+  {
+    if (cloud_filtered->points[i].z > thres_z)
+    {
+      high_indices->indices.push_back(i);
+    }
+  }
+  extract_higher_place.setInputCloud(cloud_filtered);
+  extract_higher_place.setIndices(high_indices);
+  extract_higher_place.setNegative(true);
+  extract_higher_place.filter(*cloud_h);
+  *cloud_filtered = *cloud_h;
   
   //========== Planar filter ==========
   pcl::SACSegmentation<pcl::PointXYZRGB> seg;
   pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
-  pcl::PointIndices::Ptr plane_indices (new pcl::PointIndices);
   pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
   //pcl::PCDWriter writer;
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setMaxIterations (100);
-  seg.setDistanceThreshold (0.05);
+  seg.setDistanceThreshold (0.03);
   copyPointCloud(*cloud_filtered, *hold_plane);
   hold_plane->clear();
   int nr_points = (int) cloud_filtered->points.size ();
@@ -140,23 +167,10 @@ void cluster_pointcloud()
     extract.setNegative (false);
     // Get the points associated with the planar surface
     extract.filter (*cloud_plane);
-    /*std::cout << coefficients->values[0] << ","
-              << coefficients->values[1] << ","
-              << coefficients->values[2] << ","
-              << coefficients->values[3] << ","
-              << std::endl;*/
     // Remove the planar inliers, extract the rest
     extract.setNegative (true);
     extract.filter (*cloud_f);
     *cloud_filtered = *cloud_f;
-    //std::cout << inliers->indices.size();
-    /*for (std::vector<int>::const_iterator i = inliers->indices.begin (); i != inliers->indices.end (); ++i)
-    {
-      plane_filtered->points[*i].x = nan_point;
-      plane_filtered->points[*i].y = 0;
-      plane_filtered->points[*i].z = 0;
-    }*/
-
     if (std::abs(coefficients->values[2])>0.2 && std::abs(coefficients->values[2]<0.85))
     {
       std::cout << "hold plane"<< std::endl;
@@ -182,14 +196,13 @@ void cluster_pointcloud()
   // Create cluster object
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
-  ec.setClusterTolerance (1); // unit: meter
+  ec.setClusterTolerance (0.3); // unit: meter
   ec.setMinClusterSize (10);
   ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
   int num_cluster = 0;
-  int set_r=0, set_g=0, set_b=0; // declare cluster point cloud color
   int start_index = 0;
   robotx_msgs::ObstaclePoseList ob_list;
   for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
