@@ -1,6 +1,7 @@
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Pose.h>
 #include <nav_msgs/Odometry.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl_conversions/pcl_conversions.h>
@@ -35,10 +36,13 @@ PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 //declare ROS publisher
 ros::Publisher pub_result;
 
+//declare global variable
 bool first = true;
 bool lock = false;
 Eigen::Quaterniond q;
 float position[3];
+geometry_msgs::Pose old_pos;
+geometry_msgs::Pose new_pos;
 
 //declare function
 //void callback(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
@@ -54,10 +58,11 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::O
     scene->points[i].g = 0;
     scene->points[i].b = 0; 
   }
-  
+  new_pos = odom_msg->pose.pose;
   if(first)
   {
     copyPointCloud (*scene, *map);
+    old_pos = odom_msg->pose.pose;
     /*std::vector<int> a;
     pcl::removeNaNFromPointCloud(*result, *result, a);*/
     first = false;
@@ -78,23 +83,33 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::O
     lock = true;
     icp();
   }
+  old_pos = new_pos;
 }
 
 void icp()
 {
   //define ICP
-  pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
+  /*pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree1 (new pcl::search::KdTree<pcl::PointXYZRGB>);
-  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGB>);
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGB>);*/
 
   //ICP initial transform matrix
   Eigen::Matrix4f init_align;
+  Eigen::Vector3d p;
+  //Eigen::MatrixXf p(3, 1);
+  p << position[0], position[1], position[2];
   q.normalized();
+  Eigen::Matrix3d rot_inv;
   Eigen::Matrix3d rot = q.toRotationMatrix();
-  init_align <<     rot(0,0), rot(0,1), rot(0,2), position[0],
-                    rot(1,0), rot(1,1), rot(1,2), position[1],
-                    rot(2,0), rot(2,1), rot(2,2), position[2],
+  rot_inv = rot;
+  //rot_inv = rot.inverse();
+  //p = -rot_inv*p;
+  init_align <<     rot_inv(0,0), rot_inv(0,1), rot_inv(0,2), p(0),
+                    rot_inv(1,0), rot_inv(1,1), rot_inv(1,2), p(1),
+                    rot_inv(2,0), rot_inv(2,1), rot_inv(2,2), p(2),
                            0,        0,        0,           1;
+
+  pcl::transformPointCloud (*map, *map, init_align);
 
   /*init_align <<     0.707097,    -0.707121,  0.00031099,   -43.8569,
                     0.707125,       0.7071, 0.000705772,    36.1607,
@@ -109,7 +124,7 @@ void icp()
   pcl::removeNaNFromPointCloud(*scene_input, *scene_input, indices1);
   */
   //Start ICP algorithm using kd tree
-  tree1->setInputCloud(scene); 
+  /*tree1->setInputCloud(scene); 
   tree2->setInputCloud(map); 
   icp.setSearchMethodSource(tree1);
   icp.setSearchMethodTarget(tree2);
@@ -120,7 +135,7 @@ void icp()
   icp.setEuclideanFitnessEpsilon(0.001);
   icp.setMaximumIterations(20); 
   icp.align(*scene, init_align);
-  Eigen::Matrix4f trans = icp.getFinalTransformation();
+  Eigen::Matrix4f trans = icp.getFinalTransformation();*/
   *map += *scene;
   pub_result.publish(*map);
   lock = false;
@@ -134,7 +149,7 @@ int main (int argc, char** argv)
 
   // Create a ROS subscriber for the input point cloud
   message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
-  message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh, "/odom", 1);
+  message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh, "/odometry/filtered", 1);
   typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
   // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
   Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), pcl_sub, odom_sub);

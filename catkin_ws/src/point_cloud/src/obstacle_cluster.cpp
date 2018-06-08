@@ -27,6 +27,7 @@
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <Eigen/Dense>
+#include <pcl/features/normal_3d.h>
 using namespace Eigen;
 using namespace message_filters;
 //define point cloud type
@@ -37,8 +38,10 @@ typedef boost::shared_ptr <robotx_msgs::BoolStamped const> BoolStampedConstPtr;
 PointCloudXYZ::Ptr cloud_inXYZ (new PointCloudXYZ);
 PointCloudXYZRGB::Ptr cloud_in (new PointCloudXYZRGB); 
 PointCloudXYZRGB::Ptr cloud_filtered (new PointCloudXYZRGB);
+PointCloudXYZRGB::Ptr plane_filtered (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_f (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_plane (new PointCloudXYZRGB);
+PointCloudXYZRGB::Ptr hold_plane (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 sensor_msgs::PointCloud2 ros_out;
 //declare ROS publisher
@@ -54,7 +57,8 @@ void cloud_cb(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber
 void cluster_pointcloud(void); //point cloud clustering
 void drawRviz(robotx_msgs::ObstaclePoseList); //draw marker in Rviz
 
-void callback(const sensor_msgs::PointCloud2ConstPtr& input, const robotx_msgs::BoolStampedConstPtr& tf_bool)
+//void callback(const sensor_msgs::PointCloud2ConstPtr& input, const robotx_msgs::BoolStampedConstPtr& tf_bool)
+void callback(const sensor_msgs::PointCloud2ConstPtr& input)
 {
   /*try{
     lr->waitForTransform("/map", "/robot", ros::Time::now(), ros::Duration(0.5) );
@@ -75,9 +79,10 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& input, const robotx_msgs::
       cloud_in->points[i].b = 0;
     }
     //point cloud clustering
-    if(tf_bool->data){
+    /*if(tf_bool->data){
       cluster_pointcloud();
-    }
+    }*/
+    cluster_pointcloud();
     
   }
   else{
@@ -90,29 +95,34 @@ void cluster_pointcloud()
 {
   
   std::cout<< "start processing point clouds" << std::endl;
+  copyPointCloud(*cloud_in, *cloud_filtered);
   //========== Remove NaN point ==========
-  std::vector<int> indices;
-  pcl::removeNaNFromPointCloud(*cloud_in, *cloud_in, indices);
+  /*std::vector<int> indices;
+  pcl::removeNaNFromPointCloud(*cloud_in, *cloud_in, indices);*/
 
   //========== Downsample ==========
-  pcl::VoxelGrid<pcl::PointXYZRGB> vg;
+  /*pcl::VoxelGrid<pcl::PointXYZRGB> vg;
   vg.setInputCloud (cloud_in);
   vg.setLeafSize (0.02f, 0.02f, 0.02f); //unit:cetimeter
   vg.filter (*cloud_filtered);
-  std::cout << "Filtering successfully" << std::endl;
+  std::cout << "Filtering successfully" << std::endl;*/
   
   //========== Planar filter ==========
   pcl::SACSegmentation<pcl::PointXYZRGB> seg;
   pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
+  pcl::PointIndices::Ptr plane_indices (new pcl::PointIndices);
   pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
-  pcl::PCDWriter writer;
+  //pcl::PCDWriter writer;
   seg.setOptimizeCoefficients (true);
   seg.setModelType (pcl::SACMODEL_PLANE);
   seg.setMethodType (pcl::SAC_RANSAC);
   seg.setMaxIterations (100);
   seg.setDistanceThreshold (0.05);
-  int i=0, nr_points = (int) cloud_filtered->points.size ();
-  while (cloud_filtered->points.size () > 0.2 * nr_points)
+  copyPointCloud(*cloud_filtered, *hold_plane);
+  hold_plane->clear();
+  int nr_points = (int) cloud_filtered->points.size ();
+  const float nan_point = std::numeric_limits<float>::quiet_NaN();
+  while (cloud_filtered->points.size () > 0.1 * nr_points)
   {
     // Segment the largest planar component from the remaining cloud
     seg.setInputCloud (cloud_filtered);
@@ -122,6 +132,7 @@ void cluster_pointcloud()
       std::cout << "Could not estimate a planar model for the given dataset." << std::endl;
       break;
     }
+    
     // Extract the planar inliers from the input cloud
     pcl::ExtractIndices<pcl::PointXYZRGB> extract;
     extract.setInputCloud (cloud_filtered);
@@ -129,11 +140,39 @@ void cluster_pointcloud()
     extract.setNegative (false);
     // Get the points associated with the planar surface
     extract.filter (*cloud_plane);
+    /*std::cout << coefficients->values[0] << ","
+              << coefficients->values[1] << ","
+              << coefficients->values[2] << ","
+              << coefficients->values[3] << ","
+              << std::endl;*/
     // Remove the planar inliers, extract the rest
     extract.setNegative (true);
     extract.filter (*cloud_f);
     *cloud_filtered = *cloud_f;
+    //std::cout << inliers->indices.size();
+    /*for (std::vector<int>::const_iterator i = inliers->indices.begin (); i != inliers->indices.end (); ++i)
+    {
+      plane_filtered->points[*i].x = nan_point;
+      plane_filtered->points[*i].y = 0;
+      plane_filtered->points[*i].z = 0;
+    }*/
+
+    if (std::abs(coefficients->values[2])>0.2 && std::abs(coefficients->values[2]<0.85))
+    {
+      std::cout << "hold plane"<< std::endl;
+      //plane_indices->indices.insert(plane_indices->indices.end(), inliers->indices.begin(), inliers->indices.end());
+      *hold_plane += *cloud_plane;
+    }
   }
+  /*pcl::ExtractIndices<pcl::PointXYZRGB> extract_floor;
+  extract_floor.setInputCloud(cloud_filtered);
+  extract_floor.setIndices(plane_indices);
+  extract_floor.setNegative(true);
+  extract_floor.filter(*cloud_f);
+  *cloud_filtered = *cloud_f;*/
+  //std::cout << hold_plane->points.size() << std::endl;
+  *cloud_filtered += *hold_plane;
+  
 
   //========== Point Cloud Clustering ==========
 
@@ -143,13 +182,12 @@ void cluster_pointcloud()
   // Create cluster object
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
-  ec.setClusterTolerance (0.2); // unit: meter
-  ec.setMinClusterSize (3);
+  ec.setClusterTolerance (1); // unit: meter
+  ec.setMinClusterSize (10);
   ec.setMaxClusterSize (10000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
-
   int num_cluster = 0;
   int set_r=0, set_g=0, set_b=0; // declare cluster point cloud color
   int start_index = 0;
@@ -171,7 +209,7 @@ void cluster_pointcloud()
       }
       
     }
-    MatrixXf a(cloud_cluster->points.size(),4);
+    /*MatrixXf a(cloud_cluster->points.size(),4);
     //a = MatrixXf::Random(cloud_cluster->points.size(),4);
     //std::cout << cloud_cluster->points.size() << std::endl;
     VectorXf b(cloud_cluster->points.size());
@@ -187,24 +225,25 @@ void cluster_pointcloud()
       b(i) = pow(cloud_cluster->points[i].x, 2)+pow(cloud_cluster->points[i].y, 2)+pow(cloud_cluster->points[i].z, 2);
     }
     std::cout << "Start compute radius" << std::endl;
-    ans = a.bdcSvd(ComputeThinU | ComputeThinV).solve(b);
+    ans = a.bdcSvd(ComputeThinU | ComputeThinV).solve(b);*/
     //std::cout << a.bdcSvd(ComputeThinU | ComputeThinV).solve(b) << std::endl;
     //std::cout<< "ANS:" << std::endl << ans << std::endl;
     //std::cout<< "b:" << b << std::endl;
 
 
-    //pcl::compute3DCentroid(*cloud_cluster, centroid);
+    pcl::compute3DCentroid(*cloud_cluster, centroid);
     //std::cout << centroid << std::endl;
     ob_pose.header.stamp = ros::Time::now();
     ob_pose.header.frame_id = cloud_cluster->header.frame_id;
-    //ob_pose.x = centroid[0];
-    //ob_pose.y = centroid[1];
-    //ob_pose.z = centroid[2];
-    ob_pose.x = ans(0);
+    ob_pose.x = centroid[0];
+    ob_pose.y = centroid[1];
+    ob_pose.z = centroid[2];
+    ob_pose.r = 1;
+    /*ob_pose.x = ans(0);
     ob_pose.y = ans(1);
     ob_pose.z = ans(2);
-    ob_pose.r = float(sqrt(ans(3)+pow(ans(0),2)+pow(ans(1),2)+pow(ans(2),2)));
-    std::cout << ob_pose.r << std::endl;
+    ob_pose.r = float(sqrt(ans(3)+pow(ans(0),2)+pow(ans(1),2)+pow(ans(2),2)));*/
+    //std::cout << ob_pose.r << std::endl;
     /*for(int i = 0; i < result->points.size(); i++)
     {
       result->points[i].r = 255;
@@ -229,6 +268,7 @@ void cluster_pointcloud()
   pub_result.publish(ros_out);
   lock = false;
   result->clear();
+  hold_plane->clear();
 }
 
 void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
@@ -304,14 +344,15 @@ int main (int argc, char** argv)
   tf::TransformListener listener(ros::Duration(1.0));
   lr = &listener;
   // Create a ROS subscriber for the input point cloud
-  message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
+  /*message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
   message_filters::Subscriber<robotx_msgs::BoolStamped> bool_sub(nh, "/tf_transform", 1);
   typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, robotx_msgs::BoolStamped> MySyncPolicy;
   // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
   Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), pcl_sub, bool_sub);
-  sync.registerCallback(boost::bind(&callback, _1, _2));
+  sync.registerCallback(boost::bind(&callback, _1, _2));*/
 
-  //ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, callback);
+
+  ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, callback);
   // Create a ROS publisher for the output point cloud
   pub_obstacle = nh.advertise< robotx_msgs::ObstaclePoseList > ("/obstacle_list", 1);
   pub_marker = nh.advertise< visualization_msgs::Marker >("/obstacle_marker", 1);

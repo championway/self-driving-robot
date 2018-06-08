@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <node name="icp_mapping" pkg="point_cloud" type="icp_mapping" output="screen" clear_params="true" required="true"></node>
+  <node pkg="tf" type="static_transform_publisher" name="velodyne_robot" args="0.05 0 0.45 0 0 0 1 odom velodyne 100"/>
+</launch>
