@@ -1,17 +1,13 @@
 #!/usr/bin/env python
 import rospy
-from sensor_msgs.msg import Imu, NavSatFix
 from geometry_msgs.msg import PoseStamped, PointStamped, Twist, Point
 from std_msgs.msg import Bool
 from gazebo_msgs.msg import ModelStates
 from gazebo_msgs.srv import GetModelState
 from nav_msgs.msg import Path
-from message_filters import ApproximateTimeSynchronizer, TimeSynchronizer, Subscriber
-from robotx_msgs.msg import ObstaclePoseList, Waypoint, WaypointList
 import numpy as np
 import math
 import tf
-import utm
 
 """
 This program utilizes pure pursuit to follow a given trajectory.
@@ -20,113 +16,74 @@ This program utilizes pure pursuit to follow a given trajectory.
 class gazebo_pure_pursuit():
     def __init__(self):
         # Init attributes
-        self.first_pose = PoseStamped()
-        self.first = True
-        self.pose = PoseStamped()
-        self.pose.header.frame_id = "velodyne"
-        self.default_speed = 1
-        self.euler = None
+        self.default_speed = 2
         self.speed = self.default_speed
         self.steering_angle = 0
         self.robot_length = 0.22
         self.robot_pose = None#(-0.3, -0.1789, -0.0246)
         self.destination_pose = None
         self.stop_point = None
-        self.waypoints = []
-        #self.waypoints_latlon = rospy.get_param('~path')
-        #self.waypoints = [(297866.7060146949, 2743015.9757434796),(297842.4781992137, 2743046.7985285847),(297820.873462504, 2743014.9847823563),(297847.32052896597, 2742990.6662742873),(297806.29471554933, 2742986.3919879636)]
-        way_point = rospy.wait_for_message('/waypoint_list', WaypointList)
-        #self.waypoints = [(2743015.9757434796, -297866.7060146949),(2743046.7985285847, -297842.4781992137),(2743014.9847823563, -297820.873462504),(2742990.6662742873, -297847.32052896597),(2742986.3919879636, -297806.29471554933)]
-        for i in way_point.list:
-            self.waypoints.append((i.x,i.y))
-            print (i.x, i.y)
-        print ("Way point: ")
-        print self.waypoints
+        self.waypoints = rospy.get_param('~path')
         #self.waypoints = [(0, 0),(2,2),(-1,1),(-3,3),(-3,0),(1,-2),(0,0)]
         self.current_waypoint_index = 0
         self.distance_from_path = None
         self.lookahead_distance = rospy.get_param("~lookahead")
         #self.lookahead_distance_adjust = self.lookahead_distance
-        self.threshold_proximity = 0.3      # How close the robot needs to be to the final waypoint to stop driving
+        self.threshold_proximity = 0.2      # How close the robot needs to be to the final waypoint to stop driving
         self.active = True
         self.start = True
-        # Init subscribers and publishers 
-        #self.sub_imu = rospy.Subscriber("/imu/data", Imu, self.imu_cb, queue_size=1)
-        #self.sub_gps = rospy.Subscriber("/gps/fix", NavSatFix, self.gps_cb, queue_size=1)
+        # Init subscribers and publishers
         self.pub_gazebo = rospy.Publisher('/david/cmd_vel', Twist, queue_size=1)
         self.pub_lookahead = rospy.Publisher('/pure_pursuit/lookahead', Point, queue_size=1)
         self.pub_finish = rospy.Publisher('/pure_pursuit/finished', Bool, queue_size=1)
-        self.pose_sub = rospy.Subscriber("/pose", PoseStamped, self.call_back, queue_size=1)
-        '''imu_sub = Subscriber("imu/data", Imu)
-        gps_sub = Subscriber("/fix", NavSatFix)
-        ats = ApproximateTimeSynchronizer((imu_sub, gps_sub),queue_size = 1, slop = 0.1)
-        ats.registerCallback(self.call_back)'''
-        #self.pub_pose = rospy.Publisher('/pose', PoseStamped, queue_size=1)
+        while True:
+            rospy.wait_for_service('/gazebo/get_model_state')
+            try:
+                get_model_state = rospy.ServiceProxy('/gazebo/get_model_state', GetModelState)
+                model_state = get_model_state('bot',"")
+                msg = model_state
+                #print msg
+            except rospy.ServiceException, e:
+                pass
+            if not self.active:
+                #break
+                return 
+            finish = Bool()
+            finish.data = False
+            self.pub_finish.publish(finish)
+            quaternion_msg = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
+            euler = tf.transformations.euler_from_quaternion(quaternion_msg)
+            #print euler[2]
+            #print
+            self.robot_pose = (msg.pose.position.x, msg.pose.position.y, euler[2])
+            # print self.robot_pose
 
-    '''def imu_cb(self, msg):
-        quaternion_msg = [msg.orientation.x, msg.orientation.y, msg.orientation.z, msg.orientation.w]
-        self.euler = tf.transformations.euler_from_quaternion(quaternion_msg)
-    '''
+            #print 'robot_pose:', self.robot_pose#, 'waypoints:', self.waypoints
+            self.destination_pose = self.pure_pursuit()
 
-    def call_back(self, msg):
-        if not self.active:
-            return 
-        finish = Bool()
-        finish.data = False
-        self.pub_finish.publish(finish)
+            if self.destination_pose == None:
+                self.active = False
+                print "approach destination  "
+                self.gazebo_cmd(0,0)
+                msg = Bool()
+                msg.data = True
+                self.pub_finish.publish(msg)
 
-        '''if self.first:
-            x_y = utm.from_latlon(gps_msg.latitude, gps_msg.longitude)
-            self.first_pose.pose.position.x = x_y[0]
-            self.first_pose.pose.position.y = x_y[1]
-            self.first = False
-
-        q_orig = [imu_msg.orientation.x, imu_msg.orientation.y, imu_msg.orientation.z, imu_msg.orientation.w]
-        q_rot = tf.transformations.quaternion_from_euler(0, 0, np.pi/2.0)
-        q_new = tf.transformations.quaternion_multiply(q_rot, q_orig)
-        self.euler = tf.transformations.euler_from_quaternion(q_new)
-        self.pose.pose.orientation.x = q_new[0]
-        self.pose.pose.orientation.y = q_new[1]
-        self.pose.pose.orientation.z = q_new[2]
-        self.pose.pose.orientation.w = q_new[3]
-
-        x_y = utm.from_latlon(gps_msg.latitude, gps_msg.longitude)
-        self.pose.pose.position.x = x_y[0] - self.first_pose.pose.position.x
-        self.pose.pose.position.y = x_y[1] - self.first_pose.pose.position.y
-        self.pose.pose.position.z = 0
-        #self.pub_pose.publish(self.pose)'''
-
-        #x_and_y = utm.from_latlon(msg.latitude, msg.longitude)
-        quat = [msg.pose.orientation.x, msg.pose.orientation.y, msg.pose.orientation.z, msg.pose.orientation.w]
-        euler_angle = tf.transformations.euler_from_quaternion(quat)
-
-        self.robot_pose = (msg.pose.position.x, msg.pose.position.y, euler_angle[2])
-        self.destination_pose = self.pure_pursuit()
-
-        if self.destination_pose == None:
-            self.active = False
-            print "approach destination  "
-            self.gazebo_cmd(0,0)
-            msg = Bool()
-            msg.data = True
-            self.pub_finish.publish(msg)
-
-        else:
-            self.publish_lookhead(self.destination_pose)
-            self.speed = self.default_speed
-            distance_to_destination= self.getDistance(self.robot_pose, self.destination_pose)
-            angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)       
-            # self.steering_angle = np.arctan((2 * self.robot_length * np.sin(angle_to_destination)) / distance_to_destination)         
-            # print "robot_head",euler[2]*180/math.pi,"angle_to_destination", angle_to_destination*180/math.pi
-            #print angle_to_destination
-            w = 10*((angle_to_destination + math.pi) / (2 * math.pi) - 0.5)
-            '''if w > 0:
-                w = 1
             else:
-                w = -1'''
-            #print angle_to_destination
-            self.gazebo_cmd(self.speed,w)
-
+                self.publish_lookhead(self.destination_pose)
+                self.speed = self.default_speed
+                distance_to_destination= self.getDistance(self.robot_pose, self.destination_pose)
+                angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)       
+                # self.steering_angle = np.arctan((2 * self.robot_length * np.sin(angle_to_destination)) / distance_to_destination)         
+                # print "robot_head",euler[2]*180/math.pi,"angle_to_destination", angle_to_destination*180/math.pi
+                #print angle_to_destination
+                w = 10*((angle_to_destination + math.pi) / (2 * math.pi) - 0.5)
+                '''if w > 0:
+                    w = 1
+                else:
+                    w = -1'''
+                #print angle_to_destination
+                self.gazebo_cmd(self.speed,w)
     def publish_lookhead(self, lookahead):
         msg = Point()
         msg.x, msg.y = lookahead[:2]

@@ -2,8 +2,6 @@
 <launch>
 	<arg name="lookahead" default="0.5"/>
 	<node name="pure_pursuit" pkg="pure_pursuit" type="pure_pursuit.py" output="screen" clear_params="true" required="true">
-    	<rosparam command="load" file="$(find pure_pursuit)/config/path/path.yaml"/>
     	<param name="lookahead" value="$(arg lookahead)"/>
     </node>
-
 </launch>
