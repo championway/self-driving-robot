@@ -9,5 +9,13 @@ float64 min_y
 float64 max_y
 float64 min_z
 float64 max_z
+float64 x_min_x
+float64 x_min_y
+float64 y_min_x
+float64 y_min_y
+float64 x_max_x
+float64 x_max_y
+float64 y_max_x
+float64 y_max_y
 int32 confidence
 bool occupy
