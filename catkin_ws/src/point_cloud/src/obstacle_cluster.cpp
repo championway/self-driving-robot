@@ -56,22 +56,26 @@ sensor_msgs::PointCloud2 ros_wall;
 ros::Publisher pub_result;
 ros::Publisher pub_wall;
 ros::Publisher pub_marker;
+ros::Publisher pub_marker_line;
 ros::Publisher pub_obstacle;
+
 
 tf::TransformListener* lr;
 //declare global variable
 bool lock = false;
-float low = -0.3;
+float low = -0.25;
 float high = 1.5-low;
 float thres_low = 0.03;
 float thres_high = 1.5;
 visualization_msgs::MarkerArray marker_array;
+visualization_msgs::MarkerArray marker_array_line;
 
 
 //declare function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
 void cluster_pointcloud(void); //point cloud clustering
 void drawRviz(robotx_msgs::ObstaclePoseList); //draw marker in Rviz
+void drawRviz_line(robotx_msgs::ObstaclePoseList); //draw marker line list in Rviz
 
 //void callback(const sensor_msgs::PointCloud2ConstPtr& input, const robotx_msgs::BoolStampedConstPtr& tf_bool)
 void callback(const sensor_msgs::PointCloud2ConstPtr& input)
@@ -133,7 +137,7 @@ void cluster_pointcloud()
   out_filter.filter (*cloud_filtered);*/
   
   //========== Planar filter ==========
-  pcl::SACSegmentation<pcl::PointXYZRGB> seg;
+  /*pcl::SACSegmentation<pcl::PointXYZRGB> seg;
   pcl::PointIndices::Ptr inliers (new pcl::PointIndices);
   pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients);
   //pcl::PCDWriter writer;
@@ -207,7 +211,7 @@ void cluster_pointcloud()
       //find_floor = true;
     //}
   }
-  //*cloud_filtered += *hold_plane;
+  //*cloud_filtered += *hold_plane;*/
 
   //========== Remove Higer and Lower Place ==========
   pcl::ExtractIndices<pcl::PointXYZRGB> extract_h_l_place;
@@ -273,6 +277,12 @@ void cluster_pointcloud()
   ransac.getModelCoefficients(line_coefficients);
   std::cout<<line_coefficients<<std::endl;*/
 
+  //========== Outlier remove ==========
+  pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> out_filter;
+  out_filter.setInputCloud (cloud_filtered);
+  out_filter.setMeanK (50);
+  out_filter.setStddevMulThresh (1.0);
+  out_filter.filter (*cloud_filtered);
 
   //========== Point Cloud Clustering ==========
   // Creating the KdTree object for the search method of the extraction
@@ -282,16 +292,25 @@ void cluster_pointcloud()
   std::vector<pcl::PointIndices> cluster_indices;
   pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> ec;
   ec.setClusterTolerance (0.8); // unit: meter
-  ec.setMinClusterSize (6);
-  ec.setMaxClusterSize (10000);
+  ec.setMinClusterSize (20);
+  ec.setMaxClusterSize (100000);
   ec.setSearchMethod (tree);
   ec.setInputCloud (cloud_filtered);
   ec.extract (cluster_indices);
   int num_cluster = 0;
   int start_index = 0;
   robotx_msgs::ObstaclePoseList ob_list;
+  
   for (std::vector<pcl::PointIndices>::const_iterator it = cluster_indices.begin (); it != cluster_indices.end (); ++it)
   {
+    float x_min_x = 10000;
+    float x_min_y = 10000;
+    float y_min_x = 10000;
+    float y_min_y = 10000;
+    float x_max_x = -10000;
+    float x_max_y = -10000;
+    float y_max_x = -10000;
+    float y_max_y = -10000;
     num_cluster++;
     robotx_msgs::ObstaclePose ob_pose;
     Eigen::Vector4f centroid;
@@ -299,7 +318,27 @@ void cluster_pointcloud()
     for (std::vector<int>::const_iterator pit = it->indices.begin (); pit != it->indices.end (); ++pit)
     {
       cloud_cluster->points.push_back (cloud_filtered->points[*pit]); //*
-      result->points.push_back(cloud_filtered->points[*pit]);      
+      result->points.push_back(cloud_filtered->points[*pit]);
+      if (cloud_filtered->points[*pit].x < x_min_x)
+      {
+        x_min_x = cloud_filtered->points[*pit].x;
+        x_min_y = cloud_filtered->points[*pit].y;
+      }
+      if (cloud_filtered->points[*pit].x > x_max_x)
+      {
+        x_max_x = cloud_filtered->points[*pit].x;
+        x_max_y = cloud_filtered->points[*pit].y;
+      }
+      if (cloud_filtered->points[*pit].y < y_min_y)
+      {
+        y_min_x = cloud_filtered->points[*pit].x;
+        y_min_y = cloud_filtered->points[*pit].y;
+      }
+      if (cloud_filtered->points[*pit].y > y_max_y)
+      {
+        y_max_x = cloud_filtered->points[*pit].x;
+        y_max_y = cloud_filtered->points[*pit].y;
+      }
     }
 
     pcl::compute3DCentroid(*cloud_cluster, centroid);
@@ -318,6 +357,19 @@ void cluster_pointcloud()
     ob_pose.max_y = max[1];
     ob_pose.min_z = min[2];
     ob_pose.max_z = max[2];
+    ob_pose.x_min_x = x_min_x;
+    ob_pose.x_min_y = x_min_y;
+    ob_pose.x_max_x = x_max_x;
+    ob_pose.x_max_y = x_max_y;
+    ob_pose.y_min_x = y_min_x;
+    ob_pose.y_min_y = y_min_y;
+    ob_pose.y_max_x = y_max_x;
+    ob_pose.y_max_y = y_max_y;
+    //std::cout<<min[0] <<","<<x_min_x<<std::endl;
+    std::cout<<x_max_x <<","<<x_min_x<<std::endl;
+    //std::cout<<min[1] <<","<<y_min_y<<std::endl;
+    //std::cout<<max[1] <<","<<y_max_y<<std::endl;
+    std::cout<<"--------"<<std::endl;
 
     geometry_msgs::Point pose, velocity;
     ob_pose.r = 1;
@@ -331,6 +383,7 @@ void cluster_pointcloud()
   ob_list.size = num_cluster;
   pub_obstacle.publish(ob_list);
   drawRviz(ob_list);
+  drawRviz_line(ob_list);
 
   result->header.frame_id = cloud_in->header.frame_id;
   //writer.write<pcl::PointXYZRGB> ("result.pcd", *cloud_filtered, false);
@@ -345,55 +398,56 @@ void cluster_pointcloud()
   wall->clear();
 }
 
-void drawRviz(robotx_msgs::ObstaclePoseList ob_list)
-{
+void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
+  marker_array_line.markers.resize(ob_list.size);
+  //marker.lifetime = ros::Duration(0.5);
+  std::cout << "line" << ob_list.size << std::endl;
   for (int i = 0; i < ob_list.size; i++)
   {
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "velodyne";
-    marker.id = i;
-    marker.header.stamp = ros::Time::now();
-    marker.type = visualization_msgs::Marker::CUBE;
-    marker.action = visualization_msgs::Marker::ADD;
-   
-    marker.pose.position.x = ob_list.list[i].x;
-    marker.pose.position.y = ob_list.list[i].y;
-    marker.pose.position.z = ob_list.list[i].z;
-    marker.pose.orientation.x = 0.0;
-    marker.pose.orientation.y = 0.0;
-    marker.pose.orientation.z = 0.0;
-    marker.pose.orientation.w = 1.0;
-   
-    marker.scale.x = (ob_list.list[i].max_x-ob_list.list[i].min_x);
-    marker.scale.y = (ob_list.list[i].max_y-ob_list.list[i].min_y);
-    marker.scale.z = (ob_list.list[i].max_z-ob_list.list[i].min_z);
-   
-    if (marker.scale.x ==0)
-        marker.scale.x=0.1;
-
-    if (marker.scale.y ==0)
-      marker.scale.y=0.1;
-
-    if (marker.scale.z ==0)
-      marker.scale.z=0.1;
-     
-    marker.color.r = 1.0;
-    marker.color.g = 0;
-    marker.color.b = 0;
-    marker.color.a = 0.5;
-
-    marker.lifetime = ros::Duration(1);
-    pub_marker.publish(marker);
+    marker_array_line.markers[i].header.frame_id = "velodyne";
+    marker_array_line.markers[i].id = i;
+    marker_array_line.markers[i].header.stamp = ros::Time::now();
+    marker_array_line.markers[i].type = visualization_msgs::Marker::LINE_STRIP;
+    marker_array_line.markers[i].action = visualization_msgs::Marker::ADD;
+    //marker_array.markers[i].pose.orientation.w = 1.0;
+    marker_array_line.markers[i].points.clear();
+    marker_array_line.markers[i].color.r = 1;
+    marker_array_line.markers[i].color.g = 0;
+    marker_array_line.markers[i].color.b = 0;
+    marker_array_line.markers[i].color.a = 1;
+    marker_array_line.markers[i].lifetime = ros::Duration(0.5);
+    marker_array_line.markers[i].scale.x = (0.1);
+    geometry_msgs::Point x_min;
+    x_min.x = ob_list.list[i].x_min_x;
+    x_min.y = ob_list.list[i].x_min_y;
+    geometry_msgs::Point x_max;
+    x_max.x = ob_list.list[i].x_max_x;
+    x_max.y = ob_list.list[i].x_max_y;
+    geometry_msgs::Point y_min;
+    y_min.x = ob_list.list[i].y_min_x;
+    y_min.y = ob_list.list[i].y_min_y;
+    geometry_msgs::Point y_max;
+    y_max.x = ob_list.list[i].y_max_x;
+    y_max.y = ob_list.list[i].y_max_y;
+    marker_array_line.markers[i].points.push_back(x_min);
+    marker_array_line.markers[i].points.push_back(y_min);
+    marker_array_line.markers[i].points.push_back(x_max);
+    marker_array_line.markers[i].points.push_back(y_max);
+    marker_array_line.markers[i].points.push_back(x_min);
+    std::cout<<x_max.x <<","<<x_min.x<<std::endl;
   }
+  pub_marker_line.publish(marker_array_line);
 }
 
-/*void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
+void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
       marker_array.markers.resize(ob_list.size);
       //marker.lifetime = ros::Duration(0.5);
+      std::cout << "cube" << ob_list.size << std::endl;
       std_msgs::ColorRGBA c;
       for (int i = 0; i < ob_list.size; i++)
       {
         marker_array.markers[i].header.frame_id = "velodyne";
+        marker_array.markers[i].id = i;
         marker_array.markers[i].header.stamp = ros::Time::now();
         marker_array.markers[i].type = visualization_msgs::Marker::CUBE;
         marker_array.markers[i].action = visualization_msgs::Marker::ADD;
@@ -401,7 +455,7 @@ void drawRviz(robotx_msgs::ObstaclePoseList ob_list)
         marker_array.markers[i].color.g = 0;
         marker_array.markers[i].color.b = 0;
         marker_array.markers[i].color.a = 0.5;
-        marker_array.markers[i].lifetime = ros::Duration(5);
+        marker_array.markers[i].lifetime = ros::Duration(0.5);
 
         marker_array.markers[i].pose.position.x = ob_list.list[i].x;
         marker_array.markers[i].pose.position.y = ob_list.list[i].y;
@@ -423,13 +477,13 @@ void drawRviz(robotx_msgs::ObstaclePoseList ob_list)
         if (marker_array.markers[i].scale.z ==0)
           marker_array.markers[i].scale.z=0.1;
       }
-      for (int i = 0; i < ob_list.size; i++)
+      /*for (int i = 0; i < ob_list.size; i++)
       {
         std::cout<< marker_array.markers[i].scale.x << std::endl;
       }
-      std::cout << "==========" << std::endl;
+      std::cout << "==========" << std::endl;*/
       pub_marker.publish(marker_array);
-}*/
+}
 
 int main (int argc, char** argv)
 {
@@ -450,8 +504,9 @@ int main (int argc, char** argv)
   ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, callback);
   // Create a ROS publisher for the output point cloud
   pub_obstacle = nh.advertise< robotx_msgs::ObstaclePoseList > ("/obstacle_list", 10);
-  pub_marker = nh.advertise< visualization_msgs::Marker >("/obstacle_marker", 1);
-  //pub_marker = nh.advertise<visualization_msgs::MarkerArray>("/obstacle_marker", 1);
+  //pub_marker = nh.advertise< visualization_msgs::Marker >("/obstacle_marker", 1);
+  pub_marker = nh.advertise<visualization_msgs::MarkerArray>("/obstacle_marker", 1);
+  pub_marker_line = nh.advertise<visualization_msgs::MarkerArray>("/obstacle_marker_line", 1);
   pub_result = nh.advertise<sensor_msgs::PointCloud2> ("/cluster_result", 1);
   pub_wall = nh.advertise<sensor_msgs::PointCloud2> ("/wall", 1);
   // Spin
