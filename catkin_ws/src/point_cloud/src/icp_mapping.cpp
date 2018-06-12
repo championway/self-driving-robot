@@ -15,6 +15,9 @@
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+#include <pcl_ros/transforms.h>
 using namespace message_filters;
 using namespace pcl;
 //define point cloud type
@@ -24,6 +27,7 @@ typedef boost::shared_ptr <nav_msgs::Odometry const> OdometryConstPtr;
 
 //declare point cloud
 PointCloudXYZ::Ptr input_XYZ (new PointCloudXYZ);
+sensor_msgs::PointCloud2 tf_ros;
 //PointCloudXYZRGB::Ptr cloud_XYZRGB (new PointCloudXYZRGB); 
 //PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 
@@ -43,6 +47,7 @@ Eigen::Quaterniond q;
 float position[3];
 geometry_msgs::Pose old_pos;
 geometry_msgs::Pose new_pos;
+tf::TransformListener* lr;
 
 //declare function
 //void callback(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
@@ -51,39 +56,60 @@ void icp(void);
 
 void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::OdometryConstPtr& odom_msg)
 {
-  pcl::fromROSMsg (*pcl_msg, *input_XYZ);
+  std::cout << "start" << std::endl;
+  tf::StampedTransform trans;
+  lr->lookupTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, trans);
+  pcl_ros::transformPointCloud("/odom", trans, *pcl_msg, tf_ros);
+  //lr->waitForTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, ros::Duration(10.0) );
+  //pcl_ros::transformPointCloud("/odom", *pcl_msg, tf_ros, *lr);
+  std::cout<< "finish tf transform " << std::endl;
+
+  pcl::fromROSMsg (tf_ros, *input_XYZ);
   copyPointCloud(*input_XYZ, *scene);
   for (size_t i = 0; i < scene->points.size(); i++){
     scene->points[i].r = 255;
     scene->points[i].g = 0;
     scene->points[i].b = 0; 
   }
-  new_pos = odom_msg->pose.pose;
+  //new_pos = odom_msg->pose.pose;
   if(first)
   {
     copyPointCloud (*scene, *map);
-    old_pos = odom_msg->pose.pose;
+    //old_pos = odom_msg->pose.pose;
     /*std::vector<int> a;
     pcl::removeNaNFromPointCloud(*result, *result, a);*/
     first = false;
   }
-  q.x() = odom_msg->pose.pose.orientation.x;
+  /*q.x() = odom_msg->pose.pose.orientation.x;
   q.y() = odom_msg->pose.pose.orientation.y;
   q.z() = odom_msg->pose.pose.orientation.z;
   q.w() = odom_msg->pose.pose.orientation.w;
 
   position[0] = odom_msg->pose.pose.position.x;
   position[1] = odom_msg->pose.pose.position.y;
-  position[2] = odom_msg->pose.pose.position.z;
+  position[2] = odom_msg->pose.pose.position.z;*/
   //odom_msg.pose.pose.position
   //odom_msg.pose.pose.orientation
 
   if(!lock)
   {
+    /*try
+    {
+      //lr->waitForTransform("/viewed_tag_1", input->header.frame_id, ros::Time::now(), ros::Duration(10.0) );
+      lr->waitForTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, ros::Duration(10.0) );
+      //lr.lookupTransform("viewed_tag_1", orig_ros.header.frame_id, ros::Time(0), trans);
+      //pcl_ros::transformPointCloud("viewed_tag_1", trans, orig_ros, tf_ros);
+      pcl_ros::transformPointCloud("/odom", *pcl_msg, tf_ros, *lr);
+    }
+    catch( tf::TransformException ex)
+    {
+      ROS_ERROR("transfrom exception : %s",ex.what());
+    }*/
     lock = true;
     icp();
+    
   }
-  old_pos = new_pos;
+  //old_pos = new_pos;
 }
 
 void icp()
@@ -94,7 +120,7 @@ void icp()
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGB>);*/
 
   //ICP initial transform matrix
-  Eigen::Matrix4f init_align;
+  /*Eigen::Matrix4f init_align;
   Eigen::Vector3d p;
   //Eigen::MatrixXf p(3, 1);
   p << position[0], position[1], position[2];
@@ -109,7 +135,7 @@ void icp()
                     rot_inv(2,0), rot_inv(2,1), rot_inv(2,2), p(2),
                            0,        0,        0,           1;
 
-  pcl::transformPointCloud (*map, *map, init_align);
+  pcl::transformPointCloud (*scene, *scene, init_align);
 
   /*init_align <<     0.707097,    -0.707121,  0.00031099,   -43.8569,
                     0.707125,       0.7071, 0.000705772,    36.1607,
@@ -139,6 +165,7 @@ void icp()
   *map += *scene;
   pub_result.publish(*map);
   lock = false;
+  std::cout<<"finish"<<std::endl;
 }
 
 int main (int argc, char** argv)
@@ -146,7 +173,8 @@ int main (int argc, char** argv)
   // Initialize ROS
   ros::init (argc, argv, "cluster_extraction");
   ros::NodeHandle nh;
-
+  tf::TransformListener listener(ros::Duration(10));
+  lr = &listener;
   // Create a ROS subscriber for the input point cloud
   message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh, "/odometry/filtered", 1);

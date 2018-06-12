@@ -24,6 +24,7 @@
 #include <geometry_msgs/Point.h>
 #include <geometry_msgs/Vector3.h>
 #include <std_msgs/ColorRGBA.h>
+#include <std_msgs/Time.h>
 #include <tf/transform_listener.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/subscriber.h>
@@ -69,7 +70,7 @@ float thres_low = 0.03;
 float thres_high = 1.5;
 visualization_msgs::MarkerArray marker_array;
 visualization_msgs::MarkerArray marker_array_line;
-
+ros::Time pcl_t;
 
 //declare function
 void cloud_cb(const sensor_msgs::PointCloud2ConstPtr&); //point cloud subscriber call back function
@@ -90,6 +91,7 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& input)
   if (!lock){
     lock = true;
     //covert from ros type to pcl type
+    pcl_t = input->header.stamp;
     pcl::fromROSMsg (*input, *cloud_inXYZ);
     copyPointCloud(*cloud_inXYZ, *cloud_in);
     //set color for point cloud
@@ -343,8 +345,8 @@ void cluster_pointcloud()
 
     pcl::compute3DCentroid(*cloud_cluster, centroid);
     //std::cout << centroid << std::endl;
-    ob_pose.header.stamp = ros::Time::now();
-    ob_pose.header.frame_id = cloud_cluster->header.frame_id;
+    ob_pose.header.stamp = pcl_t;
+    ob_pose.header.frame_id = cloud_in->header.frame_id;
     ob_pose.x = centroid[0];
     ob_pose.y = centroid[1];
     ob_pose.z = centroid[2];
@@ -378,7 +380,7 @@ void cluster_pointcloud()
   }
 
   //set obstacle list
-  ob_list.header.stamp = ros::Time::now();
+  ob_list.header.stamp = pcl_t;
   ob_list.header.frame_id = cloud_in->header.frame_id;
   ob_list.size = num_cluster;
   pub_obstacle.publish(ob_list);
@@ -390,6 +392,8 @@ void cluster_pointcloud()
   std::cout << "Finish" << std::endl << std::endl;
   pcl::toROSMsg(*result, ros_out);
   pcl::toROSMsg(*wall, ros_wall);
+  ros_out.header.stamp = pcl_t;
+  ros_wall.header.stamp = pcl_t;
   pub_result.publish(ros_out);
   pub_wall.publish(ros_wall);
   lock = false;
@@ -406,7 +410,7 @@ void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
   {
     marker_array_line.markers[i].header.frame_id = "velodyne";
     marker_array_line.markers[i].id = i;
-    marker_array_line.markers[i].header.stamp = ros::Time::now();
+    marker_array_line.markers[i].header.stamp = ob_list.header.stamp;
     marker_array_line.markers[i].type = visualization_msgs::Marker::LINE_STRIP;
     marker_array_line.markers[i].action = visualization_msgs::Marker::ADD;
     //marker_array.markers[i].pose.orientation.w = 1.0;
@@ -448,7 +452,7 @@ void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
       {
         marker_array.markers[i].header.frame_id = "velodyne";
         marker_array.markers[i].id = i;
-        marker_array.markers[i].header.stamp = ros::Time::now();
+        marker_array.markers[i].header.stamp = ob_list.header.stamp;
         marker_array.markers[i].type = visualization_msgs::Marker::CUBE;
         marker_array.markers[i].action = visualization_msgs::Marker::ADD;
         marker_array.markers[i].color.r = 1.0;
