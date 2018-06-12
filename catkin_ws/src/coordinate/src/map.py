@@ -9,7 +9,7 @@ from tf import TransformListener,TransformerROS
 
 class map():
     def __init__(self):
-        self.node_name = "Mocap Localization" 
+        self.node_name = "Map" 
         self.global_map = ObstaclePoseList()
         self.first = True   # process first time
         self.radius = 1   # to check whether the measurement obstacle is correspond to global map or not
@@ -55,11 +55,9 @@ class map():
         return posterior
 
     def call_back(self, msg):
-        position, quaternion = self.tf.lookupTransform("/map", "/velodyne", rospy.Time(0))
+        position, quaternion = self.tf.lookupTransform("/utm", "/velodyne", rospy.Time(0))
         transpose_matrix = self.transformer.fromTranslationRotation(position, quaternion)
-        
-        #print type(position)
-        #print type(quaternion)
+
         print ("Process Obstacle List")
         obs_list = ObstaclePoseList()
         obs_list = msg
