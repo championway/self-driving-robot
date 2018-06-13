@@ -218,7 +218,7 @@ void cluster_pointcloud()
   //========== Remove Higer and Lower Place ==========
   pcl::ExtractIndices<pcl::PointXYZRGB> extract_h_l_place;
   pcl::PointIndices::Ptr hl_indices (new pcl::PointIndices);
-  std::cout<< low << "," << high << std::endl;
+  //std::cout<< low << "," << high << std::endl;
   for (int i = 0; i < cloud_filtered->points.size(); i++)
   {
     if (cloud_filtered->points[i].z >= high || cloud_filtered->points[i].z <= low)
@@ -368,10 +368,10 @@ void cluster_pointcloud()
     ob_pose.y_max_x = y_max_x;
     ob_pose.y_max_y = y_max_y;
     //std::cout<<min[0] <<","<<x_min_x<<std::endl;
-    std::cout<<x_max_x <<","<<x_min_x<<std::endl;
+    //std::cout<<x_max_x <<","<<x_min_x<<std::endl;
     //std::cout<<min[1] <<","<<y_min_y<<std::endl;
     //std::cout<<max[1] <<","<<y_max_y<<std::endl;
-    std::cout<<"--------"<<std::endl;
+    //std::cout<<"--------"<<std::endl;
 
     geometry_msgs::Point pose, velocity;
     ob_pose.r = 1;
@@ -405,7 +405,7 @@ void cluster_pointcloud()
 void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
   marker_array_line.markers.resize(ob_list.size);
   //marker.lifetime = ros::Duration(0.5);
-  std::cout << "line" << ob_list.size << std::endl;
+  //std::cout << "line" << ob_list.size << std::endl;
   for (int i = 0; i < ob_list.size; i++)
   {
     marker_array_line.markers[i].header.frame_id = "velodyne";
@@ -438,7 +438,7 @@ void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
     marker_array_line.markers[i].points.push_back(x_max);
     marker_array_line.markers[i].points.push_back(y_max);
     marker_array_line.markers[i].points.push_back(x_min);
-    std::cout<<x_max.x <<","<<x_min.x<<std::endl;
+    //std::cout<<x_max.x <<","<<x_min.x<<std::endl;
   }
   pub_marker_line.publish(marker_array_line);
 }
@@ -446,7 +446,7 @@ void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
 void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
       marker_array.markers.resize(ob_list.size);
       //marker.lifetime = ros::Duration(0.5);
-      std::cout << "cube" << ob_list.size << std::endl;
+      //std::cout << "cube" << ob_list.size << std::endl;
       std_msgs::ColorRGBA c;
       for (int i = 0; i < ob_list.size; i++)
       {
