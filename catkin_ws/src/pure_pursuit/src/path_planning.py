@@ -1,15 +1,14 @@
 #!/usr/bin/env python
-
 import rospy
 import numpy as np
-from math import atan2, cos, sin
+from math import atan2, cos, sin, sqrt
 from scipy.spatial import Delaunay
 from robotx_msgs.msg import ObstaclePoseList
 from robotx_msgs.msg import Waypoint, WaypointList
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 
-class RRTPlanning(object):
+class PathPlanning(object):
 	def __init__(self):
 		self.node_name = rospy.get_name()
 		rospy.loginfo("[%s] Initializing ..." %(self.node_name))
@@ -52,23 +51,152 @@ class RRTPlanning(object):
 		# q_rand
 		self.published = False
 
-	def cb_wplist(self, wp_list_msg):
+	def line(self, p1, p2):
+		# y = Ax + B
+		A = (p2[1] - p1[1]) / (p2[0] - p1[0])
+		B = -A * p1[0] + p1[1]
+		return A, B
+
+	def distance(self, p1, p2):
+		return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
+
+	def point_on_both_line(self, a1, a2, b1, b2, ans):
+		if round(self.distance(a1, a2), 4) == round(self.distance(ans, a1) + self.distance(ans, a2), 4):
+			if round(self.distance(b1, b2), 4) == round(self.distance(ans, b1) + self.distance(ans, b2), 4):
+				return True
+		return False
+
+	def check_intersect(self, a1, a2, b1, b2):
+		# if two lines are both perpendicular
+		if a1[0] - a2[0] == 0 and b1[0] - b2[0] == 0:
+			if a1[0] == b1[0]:
+				return True	# if two line coincedent
+			###### if they are on the same line ######
+			return False	# if two lines parrellel
+		if a1[0] - a2[0] == 0:	# a1a2 perpendicular
+			L = self.line(b1, b2)
+			x = a1[0]
+			y = L[0]*x + L[1]
+			ans = (x, y)
+			return self.point_on_both_line(a1, a2, b1, b2, ans)
+		if b1[0] - b2[0] == 0:	# b1b2 perpendicular
+			L = self.line(a1, a2)
+			x = b1[0]
+			y = L[0]*x + L[1]
+			ans = (x, y)
+			return self.point_on_both_line(a1, a2, b1, b2, ans)
+		# L1 : y = ax + b
+		# L2 : y = cx + d
+		# intersection(x, y):
+		# x = -((b-d) / (a-c))
+		# y = (ad-bc) / (a-c)
+		L1 = self.line(a1, a2)
+		L2 = self.line(b1, b2)
+		if L1[0] == L2[0]:
+			return False
+			###### if they are on the same line ######
+		x = -((L1[1] - L2[1]) / (L1[0] - L2[0]))
+		y = (L1[0]*L2[1] - L1[1]*L2[0]) / (L1[0] - L2[0])
+		ans = (x, y)
+		return self.point_on_both_line(a1, a2, b1, b2, ans)
+
+	def get_angle(self, p1, p2, p3):
+		v0 = np.array(p2) - np.array(p1)
+		v1 = np.array(p3) - np.array(p1)
+		angle = np.math.atan2(np.linalg.det([v0,v1]),np.dot(v0,v1))
+		return abs(np.degrees(angle))
+
+	def dis_point2line(self,):
+
+	# dis -> shift distance, m -> slope, ,p -> shifted point
+	# d > 0 right side, d < 0 left side, d = 0 on the line
+	def shift_point(self, dis, m, d, p):
+		if m == None:	# the slope is vertical
+			if d > 0:	# point is above the line
+				return [p[0], p[1] + dis]
+			else:
+				return [p[0], p[1] - dis]
+		k = math.sqrt(dis**2 / (1 + m**2))
+		if d < 0:
+			k = -k
+		new_point = [p[0]+k, p[1]+k*m]
+		return new_point
+
+
+	'''def cb_wplist(self, wp_list_msg):
 		length = len(wp_list_msg.list)
 		self.X_DIM = wp_list_msg.list[length-1].x
-		self.Y_DIM = wp_list_msg.list[length-1].y
+		self.Y_DIM = wp_list_msg.list[length-1].y'''
 
 	def cb_obstacle(self, obstacle_msg):
-		self.init_param()
+		#self.init_param()
 		self.obstacle_list = obstacle_msg
-		if self.published is False and self.X_DIM is not None and not self.lock:
+		np.
+		if not self.lock:
 			self.lock = True
-			print "Start RRT"
-			self._rrt_process()
+			print "Start Path Planning"
+			self._process()
 		else:
 			self.waypoint_list.header.stamp = rospy.Time.now()
 			self.pub_waypointList.publish(self.waypoint_list)
 
-	def _rrt_process(self):
+	def _process(self):
+		for obs_index in range(self.obstacle_list.size):
+			collision = False
+			p1 = [self.obstacle_list.list[obs_index].x_min_x, self.obstacle_list.list[obs_index].x_min_y]
+			p2 = [self.obstacle_list.list[obs_index].y_min_x, self.obstacle_list.list[obs_index].y_min_y]
+			p3 = [self.obstacle_list.list[obs_index].x_max_x, self.obstacle_list.list[obs_index].x_max_y]
+			p4 = [self.obstacle_list.list[obs_index].y_max_x, self.obstacle_list.list[obs_index].y_max_y]
+			obs_vertex = [p1]
+			if not p2 in obs_vertex :
+				obs_vertex.append(p2)
+			if not p3 in obs_vertex :
+				obs_vertex.append(p3)
+			if not p4 in obs_vertex :
+				obs_vertex.append(p4)
+			for i,j in zip(obs_vertex[0::], obs_vertex[1::]):
+				if self.check_intersect(i, j, p_now, p_next):
+					collision = True
+					break
+			if self.check_intersect(obs_vertex[-1], obs_vertex[0], p_now, p_next):
+				collision = True
+			if collision:
+				obs_angle_list = []
+				angle_list = []
+				for i in range(len(obs_vertex)):
+					obs_angle_list.append([obs_vertex[i], self.get_angle(p_now, p_next, obs_vertex[i])])
+					angle_list.append(obs_angle_list[i][1])
+				angle_list.sort()
+				for i in range(len(obs_vertex)):
+					if obs_angle_list[i][1] == angle_list[-2]:
+						p_hold = obs_angle_list[i]
+						break
+				m = None
+				d = None
+				if p_now[0] - p_next[0] == 0:	# if the line is vertical
+					m = 0
+					d = (p_hold[0] - p_now[0]) - (p_hold[1] - p_now[1])*(p_next[0] - p_now[0])/(p_next[1] - p_now[1])
+				else:
+					origin_m = self.line(p_now, p_next)
+					if origin_m != 0:	# if the shift direction is not vertical
+						# calculate the shift slope (vector)
+						m = -(1.0 / origin_m)
+						# determine the point is on which side of the line
+						d = (p_hold[0] - p_now[0]) - (p_hold[1] - p_now[1])*(p_next[0] - p_now[0])/(p_next[1] - p_now[1])
+					else:	# if the shift direction is vertical
+						if p_hold[1] > p_now[1]:	# point is above the line
+							d > 0
+						else:
+							d < 0
+				p_hold = self.shift_point(self, self.car_length, m, d, p_hold)
+
+			# find closest point
+				# if distance from point to line < safe dis
+					# then shift
+					# check again
+				# else
+					# good!!!
+
 		while (np.linalg.norm(self.q_goal - self.q_near) > self.epsilon):
 			
 			# Generate q_rand
@@ -197,6 +325,6 @@ class RRTPlanning(object):
 		return result
 	
 if __name__ == "__main__":
-	rospy.init_node("rrt_planning_node", anonymous = False)
-	rrt_planning = RRTPlanning()
+	rospy.init_node("Path_planning_node", anonymous = False)
+	rrt_planning = PathPlanning()
 	rospy.spin()
