@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+  <node name="obstacle_cluster" pkg="point_cloud" type="obstacle_cluster" clear_params="true" required="true"></node>
+  <node name="obstacle_map" pkg="coordinate" type="obstacle_map.py"  clear_params="true" required="true"></node>
+  <node name="path_planning" pkg="pure_pursuit" type="path_planning.py" output="screen" clear_params="true" required="true"></node>
+</launch>
