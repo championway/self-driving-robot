@@ -13,7 +13,7 @@ import tf
 class Pure_pursuit(object):
 	def __init__(self):
 		self.node_name = rospy.get_name()
-		self.default_speed = 0.1
+		self.default_speed = 0.08
 		self.euler = None
 		self.speed = self.default_speed
 		self.robot_pose = None #(x, y, heading)
@@ -34,6 +34,7 @@ class Pure_pursuit(object):
 		self.pub_lookahead = rospy.Publisher('/pure_pursuit/lookahead', Point, queue_size=1)
 		self.pub_finish = rospy.Publisher('/pure_pursuit/finished', Bool, queue_size=1)
 		self.sub_odom = rospy.Subscriber("/odometry/filtered", Odometry, self.call_back, queue_size=10)
+		#self.sub_odom = rospy.Subscriber("/gmapping_odom", Odometry, self.call_back, queue_size=10)
 		self.sub_waypoint = rospy.Subscriber("/waypointList", WaypointList, self.waypoint_cb, queue_size = 10)	
 		rospy.loginfo("[%s] Initialized ..." %(self.node_name))
 	# Waypoint List callback
@@ -77,9 +78,36 @@ class Pure_pursuit(object):
 			self.speed = self.default_speed
 			distance_to_destination= self.distanceBtwnPoints(self.robot_pose[0], self.robot_pose[1], \
 															 self.destination_pose[0], self.destination_pose[1])
-			angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)       
+			angle_to_destination = -self.getAngle(self.robot_pose, self.destination_pose)
 			w = ((angle_to_destination + math.pi) / (2 * math.pi) - 0.5)
-			self.publish_cmd(self.speed, w)
+			self.car_control(self.speed, w)
+			
+
+	def car_control(self, v, omega):
+		print omega
+		if omega >= 0:
+			w = omega * 0.9 + 0.1
+		elif omega < 0:
+			w = omega * 0.9 - 0.1
+		print w
+		if abs(w) > 1:
+			print "Something Wrong"
+			if w > 0:
+				w = 1
+			else:
+				w = -1
+		if w < abs(0.3):
+			v = 0.07
+		elif w < abs(0.4):
+			v = 0.063
+			print "slightly slow down"
+		elif w < abs(0.5):
+			v = 0.058
+			print "slow down"
+		else:
+			v = 0.05
+			print "BIG TURN"
+		self.publish_cmd(v, w)
 
 ################################### Publish topic methods ###################################
 

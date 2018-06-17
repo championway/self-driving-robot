@@ -19,7 +19,8 @@ class PathPlanning(object):
 		#self.sub_obstacleList = rospy.Subscriber("/obstacle_list", ObstaclePoseList, self.cb_obstacle, queue_size=1)
 		#self.sub_odom		  = rospy.Subscriber("/odometry/filtered", Odometry, self.call_back, queue_size=10)
 		sub_obstacleList = Subscriber("/obstacle_list/map", ObstaclePoseList)
-		sub_odom = Subscriber("/odometry/filtered", Odometry)
+		#sub_odom = Subscriber("/odometry/filtered", Odometry)
+		sub_odom = Subscriber("/gmapping_odom", Odometry)
 		ats = ApproximateTimeSynchronizer((sub_obstacleList, sub_odom),queue_size = 1, slop = 0.1)
 		ats.registerCallback(self.call_back)
 		#self.sub_goal		  = rospy.Subscriber("/goal", WaypointList, self.cb_wplist, queue_size = 1)
@@ -31,19 +32,20 @@ class PathPlanning(object):
 		self.iteration = 0
 		self.lock = False
 		self.plan_done = False
-		self.goal_point = [20,20]
+		self.goal_point = [6,10]
 		self.p_now = self.start_point
 		self.p_next = self.goal_point
 		self.car_length = 1
-		self.safe_dis = 0.5
+		self.safe_dis = 1.2
 		self.wp_index = 0
 		self.change_side = False
 		self.check_avoid_point = False
+		self.frame_id = "map"
 		# Waypoint list
 		self.wp_list = [self.start_point, self.goal_point]
 		self.waypoint_size = 0
 		self.waypoint_list = WaypointList()
-		self.waypoint_list.header.frame_id = "odom"
+		self.waypoint_list.header.frame_id = self.frame_id
 
 	def call_back(self, obstacle_msg, odom_msg):
 		self.start_point = [odom_msg.pose.pose.position.x, odom_msg.pose.pose.position.y]
@@ -280,24 +282,7 @@ class PathPlanning(object):
 						p_new = obs_angle_list[i][0]
 						#print "p_new", p_new
 						break
-				'''m = None
-				d = None
-				if self.p_now[0] - self.p_next[0] == 0:	# if the line is vertical
-					m = 0
-					d = (p_new[0] - self.p_now[0]) - (p_new[1] - self.p_now[1])*(self.p_next[0] - self.p_now[0])/(self.p_next[1] - self.p_now[1])
-				else:
-					origin_m = self.line(p_now, self.p_next)
-					if origin_m != 0:	# if the shift direction is not vertical
-						# calculate the shift slope (vector)
-						m = -(1.0 / origin_m)
-						# determine the point is on which side of the line
-						d = (p_new[0] - self.p_now[0]) - (p_new[1] - self.p_now[1])*(self.p_next[0] - self.p_now[0])/(self.p_next[1] - self.p_now[1])
-					else:	# if the shift direction is vertical
-						if p_new[1] > self.p_now[1]:	# point is above the line
-							d > 0
-						else:
-							d < 0
-				p_new = self.shift_point(self, self.car_length, m, d, p_new)'''
+
 				p_new = self.find_shift_point(self.p_now, self.p_next, self.safe_dis + 0.1, p_new)
 				#print "A"
 				self.wp_list.insert(self.wp_index + 1, p_new)
@@ -343,6 +328,7 @@ class PathPlanning(object):
 			#print waypoint.x, waypoint.y
 			self.waypoint_list.list.append(waypoint)
 		self.waypoint_list.size = self.waypoint_size
+		self.waypoint_list.header.frame_id = self.frame_id
 		self.waypoint_list.header.stamp = rospy.Time.now()
 		self.pub_waypointList.publish(self.waypoint_list)
 		self.plan_done = True
@@ -351,7 +337,7 @@ class PathPlanning(object):
 
 	def rviz_debug(self):
 		self.waypoint_list = WaypointList()
-		self.waypoint_list.header.frame_id = "odom"
+		self.waypoint_list.header.frame_id = self.frame_id
 		self.waypoint_size = 0
 		for i in self.wp_list:
 			self.waypoint_size = self.waypoint_size + 1
@@ -363,7 +349,7 @@ class PathPlanning(object):
 			self.waypoint_list.list.append(waypoint)
 		self.waypoint_list.size = self.waypoint_size
 		marker = Marker()
-		marker.header.frame_id = "odom"
+		marker.header.frame_id = self.frame_id
 		marker.type = marker.LINE_STRIP
 		marker.action = marker.ADD
 		marker.scale.x = 0.03
@@ -393,7 +379,7 @@ class PathPlanning(object):
 
 	def rviz(self):
 		marker = Marker()
-		marker.header.frame_id = "odom"
+		marker.header.frame_id = self.frame_id
 		marker.type = marker.LINE_STRIP
 		marker.action = marker.ADD
 		marker.scale.x = 0.03

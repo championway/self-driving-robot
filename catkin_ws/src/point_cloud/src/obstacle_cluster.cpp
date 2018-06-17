@@ -117,18 +117,18 @@ void cluster_pointcloud()
 {
   
   std::cout<< "start processing point clouds" << std::endl;
-  //copyPointCloud(*cloud_in, *cloud_filtered);
+  copyPointCloud(*cloud_in, *cloud_filtered);
   
   //========== Remove NaN point ==========
   /*std::vector<int> indices;
   pcl::removeNaNFromPointCloud(*cloud_in, *cloud_in, indices);*/
 
   //========== Downsample ==========
-  pcl::VoxelGrid<pcl::PointXYZRGB> vg;
+  /*pcl::VoxelGrid<pcl::PointXYZRGB> vg;
   vg.setInputCloud (cloud_in);
   vg.setLeafSize (0.02f, 0.02f, 0.02f); //unit:cetimeter
   vg.filter (*cloud_filtered);
-  std::cout << "Filtering successfully" << std::endl;
+  std::cout << "Filtering successfully" << std::endl;*/
   //copyPointCloud(*cloud_filtered, *wall);
   //wall->clear();
 

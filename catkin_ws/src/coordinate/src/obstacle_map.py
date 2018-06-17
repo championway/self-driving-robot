@@ -10,12 +10,11 @@ from geometry_msgs.msg import Point
 import numpy as np
 
 def call_back(msg):
-    print "Hi"
     try:
         print ("Process Obstacle List")
         obs_list = ObstaclePoseList()
         obs_list = msg
-        position, quaternion = tf_.lookupTransform( "/odom", "/velodyne",rospy.Time(0))
+        position, quaternion = tf_.lookupTransform( "/map", "/velodyne",rospy.Time(0))
         transpose_matrix = transformer.fromTranslationRotation(position, quaternion)
         for obs_index in range(obs_list.size):
             origin_p  = np.array([obs_list.list[obs_index].x, obs_list.list[obs_index].y, obs_list.list[obs_index].z, 1])
@@ -38,6 +37,7 @@ def call_back(msg):
             obs_list.list[obs_index].x_max_y = new_p3[1]
             obs_list.list[obs_index].y_max_x = new_p4[0]
             obs_list.list[obs_index].y_max_y = new_p4[1]
+            obs_list.header.frame_id = "map"
         pub_obs.publish(obs_list)
 
     except (LookupException, ConnectivityException, ExtrapolationException):
