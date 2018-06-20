@@ -1,0 +1,6 @@
+<launch>
+	<!-- Read GPS serial -->
+	<node pkg="gps_receiver" type="gps_node.py" name="gps_node" output="screen" clear_params="true" required="true"/>
+		<rosparam command="load" file="$(find gps_receiver)/config/gps_node_config.yaml"/>	
+	
+</launch>

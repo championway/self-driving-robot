@@ -1,0 +1,5 @@
+<launch>
+	<node pkg="wheel_odom" type="read_serial.py" name="wheel_odom_node" output="screen" clear_params="true" required="true"/>
+		<rosparam command="load" file="$(find wheel_odom)/config/wheel_odom.yaml"/>
+
+</launch>

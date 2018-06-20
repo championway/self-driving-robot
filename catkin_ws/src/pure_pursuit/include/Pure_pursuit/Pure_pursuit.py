@@ -14,11 +14,9 @@ class Pure_pursuit(object):
 	def __init__(self):
 		self.node_name = rospy.get_name()
 		self.default_speed = 0.08
-		self.euler = None
 		self.speed = self.default_speed
 		self.robot_pose = None #(x, y, heading)
 		self.destination_pose = None
-		self.stop_point = None
 		#self.waypoints = [(7, 0),(7, 7),(0, 7),(0,0)]
 		self.waypoints = []
 		self.current_waypoint_index = 0
@@ -33,17 +31,28 @@ class Pure_pursuit(object):
 		self.pub_cmd = rospy.Publisher('/car_cmd', Twist, queue_size=1)
 		self.pub_lookahead = rospy.Publisher('/pure_pursuit/lookahead', Point, queue_size=1)
 		self.pub_finish = rospy.Publisher('/pure_pursuit/finished', Bool, queue_size=1)
-		self.sub_odom = rospy.Subscriber("/odometry/filtered", Odometry, self.call_back, queue_size=10)
-		#self.sub_odom = rospy.Subscriber("/gmapping_odom", Odometry, self.call_back, queue_size=10)
+		#self.sub_odom = rospy.Subscriber("/odometry/filtered", Odometry, self.call_back, queue_size=10)
+		self.sub_odom = rospy.Subscriber("/gmapping_odom", Odometry, self.call_back, queue_size=10)
 		self.sub_waypoint = rospy.Subscriber("/waypointList", WaypointList, self.waypoint_cb, queue_size = 10)	
 		rospy.loginfo("[%s] Initialized ..." %(self.node_name))
+
+	def initial_param(self):
+		self.waypoints = []
+		self.current_waypoint_index = 0
+		self.distance_from_path = None
+		self.active = True
+		self.start = True
+		self.get_waypoint = True
+
 	# Waypoint List callback
 	def waypoint_cb(self, msg):
-		print("Get waypoint list")
+		#print "way"
+		self.initial_param()
+		#print("Get waypoint list")
 		if self.get_waypoint:
-			self.waypoints = []
 			for i in range(msg.size):
 				self.waypoints.append([msg.list[i].x, msg.list[i].y])
+			del self.waypoints[0] # remove current position
 			#print "Waypoint: ", self.waypoints
 			self.robot_go = True
 			self.get_waypoint = False
@@ -84,14 +93,14 @@ class Pure_pursuit(object):
 			
 
 	def car_control(self, v, omega):
-		print omega
-		if omega >= 0:
-			w = omega * 0.9 + 0.1
+		#print omega
+		'''if omega >= 0:
+			w = omega * 0.85 + 0.15
 		elif omega < 0:
-			w = omega * 0.9 - 0.1
-		print w
+			w = omega * 0.85 - 0.15
+		#print w
 		if abs(w) > 1:
-			print "Something Wrong"
+			#print "Something Wrong"
 			if w > 0:
 				w = 1
 			else:
@@ -100,14 +109,17 @@ class Pure_pursuit(object):
 			v = 0.07
 		elif w < abs(0.4):
 			v = 0.063
-			print "slightly slow down"
+			#print "slightly slow down"
 		elif w < abs(0.5):
 			v = 0.058
-			print "slow down"
+			#print "slow down"
 		else:
 			v = 0.05
-			print "BIG TURN"
-		self.publish_cmd(v, w)
+			#print "BIG TURN"
+		#print w'''
+		#print omega
+		omega = omega * 1.5
+		self.publish_cmd(v, omega)
 
 ################################### Publish topic methods ###################################
 

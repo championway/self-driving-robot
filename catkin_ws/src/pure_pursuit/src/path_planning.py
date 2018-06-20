@@ -32,11 +32,11 @@ class PathPlanning(object):
 		self.iteration = 0
 		self.lock = False
 		self.plan_done = False
-		self.goal_point = [6,10]
+		self.goal_point = [22, 10]
 		self.p_now = self.start_point
 		self.p_next = self.goal_point
 		self.car_length = 1
-		self.safe_dis = 1.2
+		self.safe_dis = 1.3
 		self.wp_index = 0
 		self.change_side = False
 		self.check_avoid_point = False

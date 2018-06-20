@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+	<!-- Static transform -->
+	<!--include file="$(find coordinate)/launch/static_tf.launch"/-->
+	<!-- Robot localization, pose estimate -->
+	<!--include file="$(find robot_localization)/launch/ekf_template_gazebo.launch"/-->
+	<!-- Robot localization, gps -->
+	<!--include file="$(find robot_localization)/launch/navsat_transform_template_gazebo.launch"/-->
+	<!-- Visualize path -->
+	<!--include file="$(find visualize_data)/launch/plot_path.launch"/-->
+ 	<node name="obstacle_cluster" pkg="point_cloud" type="obstacle_cluster_gazebo" clear_params="true" required="true"></node>
+ 	<node name="obstacle_map" pkg="coordinate" type="obstacle_map_gazebo.py"  clear_params="true" required="true"></node>
+	<!--node name="path_planning" pkg="pure_pursuit" type="path_planning.py" output="screen" clear_params="true" required="true"></node-->
+	<node pkg="coordinate" type="gazebo_map_tf.py" name="gazebo_map_tf" output="screen" clear_params="true"/>
+	<node pkg="visualize_data" type="visual_path_gazebo.py" name="visual_path" output="screen" clear_params="true"/>
+</launch>
