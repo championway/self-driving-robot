@@ -1,0 +1,4 @@
+<launch>
+	<!-- Set goal server -->
+	<node pkg="gps_receiver" type="set_goal_server.py" name="set_goal_server" output="screen" clear_params="true" required="true"/>
+</launch>

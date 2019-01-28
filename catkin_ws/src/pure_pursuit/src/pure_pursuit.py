@@ -23,7 +23,7 @@ class pure_pursuit():
         self.first_pose = PoseStamped()
         self.first = True
         self.pose = PoseStamped()
-        self.pose.header.frame_id = "utm"
+        self.pose.header.frame_id = "odom"
         self.default_speed = 0.08
         self.euler = None
         self.speed = self.default_speed

@@ -32,13 +32,16 @@ sensor_msgs::PointCloud2 tf_ros;
 //PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 
 //declare point cloud variable
+PointCloudXYZRGB::Ptr map_i (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr map (new PointCloudXYZRGB);
+PointCloudXYZRGB::Ptr scene_i (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr scene (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 
 
 //declare ROS publisher
 ros::Publisher pub_result;
+ros::Publisher pub_no_icp;
 
 //declare global variable
 bool first = true;
@@ -54,12 +57,22 @@ tf::TransformListener* lr;
 
 void icp(void);
 
-void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::OdometryConstPtr& odom_msg)
+//void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::OdometryConstPtr& odom_msg)
+void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg)
 {
   std::cout << "start" << std::endl;
   tf::StampedTransform trans;
-  lr->lookupTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, trans);
-  pcl_ros::transformPointCloud("/odom", trans, *pcl_msg, tf_ros);
+  //lr->lookupTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, trans);
+  //pcl_ros::transformPointCloud("/odom", trans, *pcl_msg, tf_ros);
+  try
+  {
+    lr->waitForTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, ros::Duration(10.0) );
+    pcl_ros::transformPointCloud("/odom", *pcl_msg, tf_ros, *lr);
+  }
+  catch( tf::TransformException ex)
+  {
+    ROS_ERROR("transfrom exception : %s",ex.what());
+  }
   //lr->waitForTransform("/odom", pcl_msg->header.frame_id, pcl_msg->header.stamp, ros::Duration(10.0) );
   //pcl_ros::transformPointCloud("/odom", *pcl_msg, tf_ros, *lr);
   std::cout<< "finish tf transform " << std::endl;
@@ -71,10 +84,12 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::O
     scene->points[i].g = 0;
     scene->points[i].b = 0; 
   }
+  copyPointCloud(*scene, *scene_i);
   //new_pos = odom_msg->pose.pose;
   if(first)
   {
     copyPointCloud (*scene, *map);
+    copyPointCloud (*scene, *map_i);
     //old_pos = odom_msg->pose.pose;
     /*std::vector<int> a;
     pcl::removeNaNFromPointCloud(*result, *result, a);*/
@@ -115,9 +130,9 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& pcl_msg, const nav_msgs::O
 void icp()
 {
   //define ICP
-  /*pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
+  pcl::IterativeClosestPoint<pcl::PointXYZRGB, pcl::PointXYZRGB> icp;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree1 (new pcl::search::KdTree<pcl::PointXYZRGB>);
-  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGB>);*/
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr tree2 (new pcl::search::KdTree<pcl::PointXYZRGB>);
 
   //ICP initial transform matrix
   /*Eigen::Matrix4f init_align;
@@ -150,20 +165,23 @@ void icp()
   pcl::removeNaNFromPointCloud(*scene_input, *scene_input, indices1);
   */
   //Start ICP algorithm using kd tree
-  /*tree1->setInputCloud(scene); 
+  tree1->setInputCloud(scene); 
   tree2->setInputCloud(map); 
   icp.setSearchMethodSource(tree1);
   icp.setSearchMethodTarget(tree2);
   icp.setInputSource(scene);
   icp.setInputTarget(map);
-  icp.setMaxCorrespondenceDistance(10);
+  icp.setMaxCorrespondenceDistance(50);
   icp.setTransformationEpsilon(1e-8);
   icp.setEuclideanFitnessEpsilon(0.001);
-  icp.setMaximumIterations(20); 
-  icp.align(*scene, init_align);
-  Eigen::Matrix4f trans = icp.getFinalTransformation();*/
+  icp.setMaximumIterations(100); 
+  //icp.align(*scene, init_align);
+  icp.align(*scene);
+  //Eigen::Matrix4f trans = icp.getFinalTransformation();
+  *map_i += *scene_i;
   *map += *scene;
   pub_result.publish(*map);
+  pub_no_icp.publish(*map_i);
   lock = false;
   std::cout<<"finish"<<std::endl;
 }
@@ -176,16 +194,17 @@ int main (int argc, char** argv)
   tf::TransformListener listener(ros::Duration(10));
   lr = &listener;
   // Create a ROS subscriber for the input point cloud
-  message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
+  /*message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, "/velodyne_points", 1);
   message_filters::Subscriber<nav_msgs::Odometry> odom_sub(nh, "/odometry/filtered", 1);
   typedef sync_policies::ApproximateTime<sensor_msgs::PointCloud2, nav_msgs::Odometry> MySyncPolicy;
   // ApproximateTime takes a queue size as its constructor argument, hence MySyncPolicy(10)
   Synchronizer<MySyncPolicy> sync(MySyncPolicy(1), pcl_sub, odom_sub);
-  sync.registerCallback(boost::bind(&callback, _1, _2));
+  sync.registerCallback(boost::bind(&callback, _1, _2));*/
 
-  //ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/velodyne_points", 1, cloud_cb);
+  ros::Subscriber sub = nh.subscribe<sensor_msgs::PointCloud2> ("/cluster_result", 1, callback);
   // Create a ROS publisher for the output point cloud
   pub_result = nh.advertise<PointCloudXYZRGB> ("/output", 1);
+  pub_no_icp = nh.advertise<PointCloudXYZRGB> ("/no_icp", 1);
   // Spin
   ros::spin ();
 }

@@ -49,13 +49,13 @@ PointCloudXYZRGB::Ptr cloud_h (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_f (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr cloud_plane (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr hold_plane (new PointCloudXYZRGB);
-PointCloudXYZRGB::Ptr wall (new PointCloudXYZRGB);
+//PointCloudXYZRGB::Ptr wall (new PointCloudXYZRGB);
 PointCloudXYZRGB::Ptr result (new PointCloudXYZRGB);
 sensor_msgs::PointCloud2 ros_out;
-sensor_msgs::PointCloud2 ros_wall;
+//sensor_msgs::PointCloud2 ros_wall;
 //declare ROS publisher
 ros::Publisher pub_result;
-ros::Publisher pub_wall;
+//ros::Publisher pub_wall;
 ros::Publisher pub_marker;
 ros::Publisher pub_marker_line;
 ros::Publisher pub_obstacle;
@@ -91,7 +91,7 @@ void callback(const sensor_msgs::PointCloud2ConstPtr& input)
   if (!lock){
     lock = true;
     //covert from ros type to pcl type
-    pcl_t = input->header.stamp;
+    //pcl_t = input->header.stamp;
     pcl::fromROSMsg (*input, *cloud_inXYZ);
     copyPointCloud(*cloud_inXYZ, *cloud_in);
     //set color for point cloud
@@ -118,8 +118,7 @@ void cluster_pointcloud()
   
   std::cout<< "start processing point clouds" << std::endl;
   copyPointCloud(*cloud_in, *cloud_filtered);
-  copyPointCloud(*cloud_filtered, *wall);
-  wall->clear();
+  
   //========== Remove NaN point ==========
   /*std::vector<int> indices;
   pcl::removeNaNFromPointCloud(*cloud_in, *cloud_in, indices);*/
@@ -130,6 +129,8 @@ void cluster_pointcloud()
   vg.setLeafSize (0.02f, 0.02f, 0.02f); //unit:cetimeter
   vg.filter (*cloud_filtered);
   std::cout << "Filtering successfully" << std::endl;*/
+  //copyPointCloud(*cloud_filtered, *wall);
+  //wall->clear();
 
   //========== Outlier remove ==========
   /*pcl::StatisticalOutlierRemoval<pcl::PointXYZRGB> out_filter;
@@ -218,7 +219,7 @@ void cluster_pointcloud()
   //========== Remove Higer and Lower Place ==========
   pcl::ExtractIndices<pcl::PointXYZRGB> extract_h_l_place;
   pcl::PointIndices::Ptr hl_indices (new pcl::PointIndices);
-  std::cout<< low << "," << high << std::endl;
+  //std::cout<< low << "," << high << std::endl;
   for (int i = 0; i < cloud_filtered->points.size(); i++)
   {
     if (cloud_filtered->points[i].z >= high || cloud_filtered->points[i].z <= low)
@@ -345,7 +346,7 @@ void cluster_pointcloud()
 
     pcl::compute3DCentroid(*cloud_cluster, centroid);
     //std::cout << centroid << std::endl;
-    ob_pose.header.stamp = pcl_t;
+    ob_pose.header.stamp = ros::Time::now();
     ob_pose.header.frame_id = cloud_in->header.frame_id;
     ob_pose.x = centroid[0];
     ob_pose.y = centroid[1];
@@ -368,10 +369,10 @@ void cluster_pointcloud()
     ob_pose.y_max_x = y_max_x;
     ob_pose.y_max_y = y_max_y;
     //std::cout<<min[0] <<","<<x_min_x<<std::endl;
-    std::cout<<x_max_x <<","<<x_min_x<<std::endl;
+    //std::cout<<x_max_x <<","<<x_min_x<<std::endl;
     //std::cout<<min[1] <<","<<y_min_y<<std::endl;
     //std::cout<<max[1] <<","<<y_max_y<<std::endl;
-    std::cout<<"--------"<<std::endl;
+    //std::cout<<"--------"<<std::endl;
 
     geometry_msgs::Point pose, velocity;
     ob_pose.r = 1;
@@ -380,7 +381,7 @@ void cluster_pointcloud()
   }
 
   //set obstacle list
-  ob_list.header.stamp = pcl_t;
+  ob_list.header.stamp = ros::Time::now();
   ob_list.header.frame_id = cloud_in->header.frame_id;
   ob_list.size = num_cluster;
   pub_obstacle.publish(ob_list);
@@ -391,21 +392,21 @@ void cluster_pointcloud()
   //writer.write<pcl::PointXYZRGB> ("result.pcd", *cloud_filtered, false);
   std::cout << "Finish" << std::endl << std::endl;
   pcl::toROSMsg(*result, ros_out);
-  pcl::toROSMsg(*wall, ros_wall);
-  ros_out.header.stamp = pcl_t;
-  ros_wall.header.stamp = pcl_t;
+  //pcl::toROSMsg(*wall, ros_wall);
+  ros_out.header.stamp = ros::Time::now();
+  //ros_wall.header.stamp = pcl_t;
   pub_result.publish(ros_out);
-  pub_wall.publish(ros_wall);
+  //pub_wall.publish(ros_wall);
   lock = false;
   result->clear();
   hold_plane->clear();
-  wall->clear();
+  //wall->clear();
 }
 
 void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
   marker_array_line.markers.resize(ob_list.size);
   //marker.lifetime = ros::Duration(0.5);
-  std::cout << "line" << ob_list.size << std::endl;
+  //std::cout << "line" << ob_list.size << std::endl;
   for (int i = 0; i < ob_list.size; i++)
   {
     marker_array_line.markers[i].header.frame_id = "velodyne";
@@ -438,7 +439,7 @@ void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
     marker_array_line.markers[i].points.push_back(x_max);
     marker_array_line.markers[i].points.push_back(y_max);
     marker_array_line.markers[i].points.push_back(x_min);
-    std::cout<<x_max.x <<","<<x_min.x<<std::endl;
+    //std::cout<<x_max.x <<","<<x_min.x<<std::endl;
   }
   pub_marker_line.publish(marker_array_line);
 }
@@ -446,7 +447,7 @@ void drawRviz_line(robotx_msgs::ObstaclePoseList ob_list){
 void drawRviz(robotx_msgs::ObstaclePoseList ob_list){
       marker_array.markers.resize(ob_list.size);
       //marker.lifetime = ros::Duration(0.5);
-      std::cout << "cube" << ob_list.size << std::endl;
+      //std::cout << "cube" << ob_list.size << std::endl;
       std_msgs::ColorRGBA c;
       for (int i = 0; i < ob_list.size; i++)
       {
@@ -512,7 +513,7 @@ int main (int argc, char** argv)
   pub_marker = nh.advertise<visualization_msgs::MarkerArray>("/obstacle_marker", 1);
   pub_marker_line = nh.advertise<visualization_msgs::MarkerArray>("/obstacle_marker_line", 1);
   pub_result = nh.advertise<sensor_msgs::PointCloud2> ("/cluster_result", 1);
-  pub_wall = nh.advertise<sensor_msgs::PointCloud2> ("/wall", 1);
+  //pub_wall = nh.advertise<sensor_msgs::PointCloud2> ("/wall", 1);
   // Spin
   ros::spin ();
 }

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<launch>
+	<!-- Wheel odometry -->
+	<include file="$(find wheel_odom)/launch/wheel_odom.launch"/>
+	<!-- IMU -->
+	<include file="$(find razor_imu_9dof)/launch/razor-pub.launch"/>
+	<!-- GPS -->
+	<!--include file="$(find gps_receiver)/launch/gps.launch"/-->
+	<!-- Static transform -->
+	<include file="$(find coordinate)/launch/static_tf.launch"/>
+	<!-- Robot localization, pose estimate -->
+	<include file="$(find robot_localization)/launch/ekf_template.launch"/>
+	<!-- Robot localization, gps -->
+	<include file="$(find robot_localization)/launch/navsat_transform_template.launch"/>
+	<!-- Visualize path -->
+	<include file="$(find visualize_data)/launch/plot_path.launch"/>
+</launch>
